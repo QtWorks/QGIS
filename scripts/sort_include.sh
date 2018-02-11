@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 ###########################################################################
 #    sort_include.sh
 #    ---------------------
@@ -36,7 +36,6 @@ for file in $(find . \
  ! -path "./src/astyle/*" \
  ! -path "./python/ext-libs/*" \
  ! -path "./src/providers/spatialite/qspatialite/*" \
- ! -path "./src/plugins/dxf2shp_converter/dxflib/src/*" \
  ! -path "./src/plugins/globe/osgEarthQt/*" \
  ! -path "./src/plugins/globe/osgEarthUtil/*" \
  -regex "./src/\(.+/\)*.*\.\(h\|cpp\)" -type f \

@@ -17,22 +17,27 @@
 #define QGSWEBVIEW_H
 
 
+#define SIP_NO_FILE
+
 #include <QWidget>
-#include <QPrinter>
 
 #ifdef WITH_QTWEBKIT
 #include <QWebView>
 #include <QDesktopWidget>
 
-/** \ingroup core
+#include "qgis_core.h"
+
+
+/**
+ * \ingroup core
  */
 class CORE_EXPORT QgsWebView : public QWebView
 {
     Q_OBJECT
 
   public:
-    explicit QgsWebView( QWidget* parent = nullptr )
-        : QWebView( parent )
+    explicit QgsWebView( QWidget *parent = nullptr )
+      : QWebView( parent )
     {
       QDesktopWidget desktop;
       // Apply zoom factor for HiDPI screens
@@ -46,8 +51,11 @@ class CORE_EXPORT QgsWebView : public QWebView
 #include "qgswebpage.h"
 #include <QTextBrowser>
 
-/** \ingroup core
- * @brief The QgsWebView class is a collection of stubs to mimic the API of QWebView on systems where the real
+class QPrinter;
+
+/**
+ * \ingroup core
+ * \brief The QgsWebView class is a collection of stubs to mimic the API of QWebView on systems where the real
  * library is not available. It should be used instead of QWebView inside QGIS.
  *
  * If QGIS is compiled WITH_QTWEBKIT This will simply be a subclass of QWebView. If it is compiled with
@@ -60,12 +68,13 @@ class CORE_EXPORT QgsWebView : public QTextBrowser
 /// @cond NOT_STABLE_API
     Q_OBJECT
   public:
-    explicit QgsWebView( QWidget *parent = 0 )
-        : QTextBrowser( parent )
-        , mSettings( new QWebSettings() )
-        , mPage( new QWebPage( this ) )
+    explicit QgsWebView( QWidget *parent = nullptr )
+      : QTextBrowser( parent )
+      , mSettings( new QWebSettings() )
+      , mPage( new QWebPage( this ) )
     {
-      connect( this, SIGNAL( anchorClicked( const QUrl & ) ), this, SIGNAL( linkClicked( const QUrl & ) ) );
+      connect( this, &QTextBrowser::anchorClicked, this, &QgsWebView::linkClicked );
+      connect( this, &QgsWebView::pageLoadFinished, mPage, &QWebPage::loadFinished );
     }
 
     ~QgsWebView()
@@ -74,45 +83,54 @@ class CORE_EXPORT QgsWebView : public QTextBrowser
       delete mPage;
     }
 
-    void setUrl( const QUrl& url )
+    void setUrl( const QUrl &url )
     {
       setSource( url );
     }
 
-    void load( const QUrl& url )
+    void load( const QUrl &url )
     {
       setSource( url );
     }
 
-    QWebPage* page() const
+    QWebPage *page() const
     {
       return mPage;
     }
 
-    QWebSettings* settings() const
+    QWebSettings *settings() const
     {
       return mSettings;
     }
 
-    virtual QgsWebView* createWindow( QWebPage::WebWindowType )
+    virtual QgsWebView *createWindow( QWebPage::WebWindowType )
     {
       return new QgsWebView();
     }
 
-    void setContent( const QByteArray&, const QString&, const QUrl& )
+    void setContent( const QByteArray &data, const QString &contentType, const QUrl & )
     {
+      QString text = QString::fromUtf8( data );
+      if ( contentType == "text/html" )
+        setHtml( text );
+      else
+        setPlainText( text );
+
+      emit pageLoadFinished( true );
     }
 
-    void print( QPrinter* )
+    void print( QPrinter * )
     {
     }
 
   signals:
     void linkClicked( const QUrl &link );
 
+    void pageLoadFinished( bool ok );
+
   private:
-    QWebSettings *mSettings;
-    QWebPage *mPage;
+    QWebSettings *mSettings = nullptr;
+    QWebPage *mPage = nullptr;
 
 /// @endcond
 };

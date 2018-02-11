@@ -9,20 +9,12 @@
 
 WriteRegStr HKEY_CURRENT_USER "Software\QGIS\QGIS3\Plugins" "coordinatecaptureplugin" "true"
 WriteRegStr HKEY_CURRENT_USER "Software\QGIS\QGIS3\Plugins" "diagramoverlay" "true"
-WriteRegStr HKEY_CURRENT_USER "Software\QGIS\QGIS3\Plugins" "dxf2shpconverterplugin" "true"
 WriteRegStr HKEY_CURRENT_USER "Software\QGIS\QGIS3\Plugins" "evis" "true"
 WriteRegStr HKEY_CURRENT_USER "Software\QGIS\QGIS3\Plugins" "georefplugin" "true"
 WriteRegStr HKEY_CURRENT_USER "Software\QGIS\QGIS3\Plugins" "globeplugin" "false"
 WriteRegStr HKEY_CURRENT_USER "Software\QGIS\QGIS3\Plugins" "gpsimporterplugin" "true"
 WriteRegStr HKEY_CURRENT_USER "Software\QGIS\QGIS3\Plugins" "grassplugin" "true"
-WriteRegStr HKEY_CURRENT_USER "Software\QGIS\QGIS3\Plugins" "heatmapplugin" "true"
-WriteRegStr HKEY_CURRENT_USER "Software\QGIS\QGIS3\Plugins" "interpolationplugin" "true"
 WriteRegStr HKEY_CURRENT_USER "Software\QGIS\QGIS3\Plugins" "offlineeditingplugin" "true"
-WriteRegStr HKEY_CURRENT_USER "Software\QGIS\QGIS3\Plugins" "oracleplugin" "true"
-WriteRegStr HKEY_CURRENT_USER "Software\QGIS\QGIS3\Plugins" "rasterterrainplugin" "true"
-WriteRegStr HKEY_CURRENT_USER "Software\QGIS\QGIS3\Plugins" "roadgraphplugin" "true"
-WriteRegStr HKEY_CURRENT_USER "Software\QGIS\QGIS3\Plugins" "spatialqueryplugin" "true"
 WriteRegStr HKEY_CURRENT_USER "Software\QGIS\QGIS3\Plugins" "topolplugin" "true"
-WriteRegStr HKEY_CURRENT_USER "Software\QGIS\QGIS3\Plugins" "zonalstatisticsplugin" "true"
 
 ###############################  reg2nsis end  #################################

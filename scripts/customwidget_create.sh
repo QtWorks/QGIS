@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script automatically creates custom widget plugin for a given widget class name.
 # Use customwidget_create.sh QgsColorButton to create QgsColorButtonPlugin files.
@@ -26,7 +26,7 @@ declare -a EXT=("cpp" "h")
 for i in "${EXT[@]}"
 do
 	DESTFILE=$DIR/../src/customwidgets/${CLASSLOWER}plugin.$i
-	cp $DIR/customwidget_template.$i $DESTFILE
+	cp $DIR/customwidget.$i.template $DESTFILE
 	sed -i s/%DATE%/"$TODAY"/g "$DESTFILE"
 	sed -i s/%YEAR%/"$YEAR"/g "$DESTFILE"
 	sed -i s/%AUTHOR%/"$AUTHOR"/g "$DESTFILE"

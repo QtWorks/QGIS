@@ -3,15 +3,16 @@ from qgis.PyQt.QtCore import QCoreApplication
 from qgis.PyQt.QtWidgets import QAction, QMenu
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QApplication
-from processing.core.alglist import algList
 from processing.core.ProcessingConfig import ProcessingConfig, Setting
 from processing.gui.MessageDialog import MessageDialog
 from processing.gui.AlgorithmDialog import AlgorithmDialog
 from qgis.utils import iface
+from qgis.core import QgsApplication
 from processing.gui.MessageBarProgress import MessageBarProgress
-from processing.gui.AlgorithmExecutor import runalg
+from processing.gui.AlgorithmExecutor import execute
 from processing.gui.Postprocessing import handleAlgorithmResults
 from processing.core.Processing import Processing
+from processing.tools import dataobjects
 
 algorithmsToolbar = None
 menusSettingsGroup = 'Menus'
@@ -24,11 +25,10 @@ defaultMenuEntries.update({'qgis:distancematrix': analysisToolsMenu,
                            'qgis:pointsinpolygon': analysisToolsMenu,
                            'qgis:countpointsinpolygon': analysisToolsMenu,
                            'qgis:listuniquevalues': analysisToolsMenu,
-                           'qgis:basicstatisticsfornumericfields': analysisToolsMenu,
-                           'qgis:basicstatisticsfortextfields': analysisToolsMenu,
+                           'qgis:basicstatisticsforfields': analysisToolsMenu,
                            'qgis:nearestneighbouranalysis': analysisToolsMenu,
                            'qgis:meancoordinates': analysisToolsMenu,
-                           'qgis:lineintersecions': analysisToolsMenu})
+                           'qgis:lineintersections': analysisToolsMenu})
 researchToolsMenu = vectorMenu + "/" + Processing.tr('&Research Tools')
 defaultMenuEntries.update({'qgis:randomselection': researchToolsMenu,
                            'qgis:randomselectionwithinsubsets': researchToolsMenu,
@@ -48,10 +48,10 @@ defaultMenuEntries.update({'qgis:convexhull': geoprocessingToolsMenu,
                            'qgis:intersection': geoprocessingToolsMenu,
                            'qgis:union': geoprocessingToolsMenu,
                            'qgis:symmetricaldifference': geoprocessingToolsMenu,
-                           'qgis:clip': geoprocessingToolsMenu,
+                           'native:clip': geoprocessingToolsMenu,
                            'qgis:difference': geoprocessingToolsMenu,
                            'qgis:dissolve': geoprocessingToolsMenu,
-                           'qgis:eliminatesliverpolygons': geoprocessingToolsMenu})
+                           'qgis:eliminateselectedpolygons': geoprocessingToolsMenu})
 geometryToolsMenu = vectorMenu + "/" + Processing.tr('G&eometry Tools')
 defaultMenuEntries.update({'qgis:checkvalidity': geometryToolsMenu,
                            'qgis:exportaddgeometrycolumns': geometryToolsMenu,
@@ -71,57 +71,57 @@ defaultMenuEntries.update({'qgis:definecurrentprojection': managementToolsMenu,
                            'qgis:splitvectorlayer': managementToolsMenu,
                            'qgis:mergevectorlayers': managementToolsMenu,
                            'qgis:createspatialindex': managementToolsMenu})
-"""
+
 rasterMenu = Processing.tr('&Raster')
 projectionsMenu = rasterMenu + "/" + Processing.tr('Projections')
-defaultMenuEntries.update({'gdalogr:warpreproject':projectionsMenu,
-                           'gdalogr:assignprojection':projectionsMenu,
-                           'gdalogr:extractprojection':projectionsMenu})
+defaultMenuEntries.update({'gdal:warpreproject': projectionsMenu,
+                           'gdal:assignprojection': projectionsMenu,
+                           'gdal:extractprojection': projectionsMenu})
 conversionMenu = rasterMenu + "/" + Processing.tr('Conversion')
-defaultMenuEntries.update({'gdalogr:rasterize':conversionMenu,
-                           'gdalogr:rasterize_over':conversionMenu,
-                           'gdalogr:polygonize':conversionMenu,
-                           'gdalogr:translate':conversionMenu,
-                           'gdalogr:rgbtopct':conversionMenu,
-                           'gdalogr:pcttorgb':conversionMenu})
+defaultMenuEntries.update({'gdal:rasterize': conversionMenu,
+                           'gdal:rasterize_over': conversionMenu,
+                           'gdal:polygonize': conversionMenu,
+                           'gdal:translate': conversionMenu,
+                           'gdal:rgbtopct': conversionMenu,
+                           'gdal:pcttorgb': conversionMenu})
 extractionMenu = rasterMenu + "/" + Processing.tr('Extraction')
-defaultMenuEntries.update({'gdalogr:contour':extractionMenu,
-                           'gdalogr:cliprasterbyextent':extractionMenu,
-                           'gdalogr:cliprasterbymasklayer':extractionMenu})
+defaultMenuEntries.update({'gdal:contour': extractionMenu,
+                           'gdal:cliprasterbyextent': extractionMenu,
+                           'gdal:cliprasterbymasklayer': extractionMenu})
 analysisMenu = rasterMenu + "/" + Processing.tr('Analysis')
-defaultMenuEntries.update({'gdalogr:sieve':analysisMenu, 'gdalogr:nearblack':analysisMenu,
-                           'gdalogr:fillnodata':analysisMenu,
-                           'gdalogr:proximity':analysisMenu,
-                           'gdalogr:griddatametrics':analysisMenu,
-                           'gdalogr:gridaverage':analysisMenu,
-                           'gdalogr:gridinvdist':analysisMenu,
-                           'gdalogr:gridnearestneighbor':analysisMenu,
-                           'gdalogr:aspect':analysisMenu,
-                           'gdalogr:hillshade':analysisMenu,
-                           'gdalogr:roughness':analysisMenu,
-                           'gdalogr:slope':analysisMenu,
-                           'gdalogr:tpi':analysisMenu,
-                           'gdalogr:tri':analysisMenu})
+defaultMenuEntries.update({'gdal:sieve': analysisMenu,
+                           'gdal:nearblack': analysisMenu,
+                           'gdal:fillnodata': analysisMenu,
+                           'gdal:proximity': analysisMenu,
+                           'gdal:griddatametrics': analysisMenu,
+                           'gdal:gridaverage': analysisMenu,
+                           'gdal:gridinvdist': analysisMenu,
+                           'gdal:gridnearestneighbor': analysisMenu,
+                           'gdal:aspect': analysisMenu,
+                           'gdal:hillshade': analysisMenu,
+                           'gdal:roughness': analysisMenu,
+                           'gdal:slope': analysisMenu,
+                           'gdal:tpi': analysisMenu,
+                           'gdal:tri': analysisMenu})
 miscMenu = rasterMenu + "/" + Processing.tr('Miscellaneous')
-defaultMenuEntries.update({'gdalogr:buildvirtualraster':miscMenu,
-                           'gdalogr:merge':miscMenu,
-                           'gdalogr:rasterinfo':miscMenu,
-                           'gdalogr:overviews':miscMenu,
-                           'gdalogr:tileindex':miscMenu})
-"""
+defaultMenuEntries.update({'gdal:buildvirtualraster': miscMenu,
+                           'gdal:merge': miscMenu,
+                           'gdal:rasterinfo': miscMenu,
+                           'gdal:overviews': miscMenu,
+                           'gdal:tileindex': miscMenu})
 
 
 def initializeMenus():
-    for provider in algList.providers:
-        for alg in provider.algs:
-            d = defaultMenuEntries.get(alg.commandLineName(), "")
-            setting = Setting(menusSettingsGroup, "MENU_" + alg.commandLineName(),
+    for provider in QgsApplication.processingRegistry().providers():
+        for alg in provider.algorithms():
+            d = defaultMenuEntries.get(alg.id(), "")
+            setting = Setting(menusSettingsGroup, "MENU_" + alg.id(),
                               "Menu path", d)
             ProcessingConfig.addSetting(setting)
-            setting = Setting(menusSettingsGroup, "BUTTON_" + alg.commandLineName(),
+            setting = Setting(menusSettingsGroup, "BUTTON_" + alg.id(),
                               "Add button", False)
             ProcessingConfig.addSetting(setting)
-            setting = Setting(menusSettingsGroup, "ICON_" + alg.commandLineName(),
+            setting = Setting(menusSettingsGroup, "ICON_" + alg.id(),
                               "Icon", "", valuetype=Setting.FILE)
             ProcessingConfig.addSetting(setting)
 
@@ -135,33 +135,31 @@ def updateMenus():
 
 
 def createMenus():
-    for provider in list(algList.algs.values()):
-        for alg in list(provider.values()):
-            menuPath = ProcessingConfig.getSetting("MENU_" + alg.commandLineName())
-            addButton = ProcessingConfig.getSetting("BUTTON_" + alg.commandLineName())
-            icon = ProcessingConfig.getSetting("ICON_" + alg.commandLineName())
-            if icon and os.path.exists(icon):
-                icon = QIcon(icon)
-            else:
-                icon = None
-            if menuPath:
-                paths = menuPath.split("/")
-                addAlgorithmEntry(alg, paths[0], paths[-1], addButton=addButton, icon=icon)
+    for alg in QgsApplication.processingRegistry().algorithms():
+        menuPath = ProcessingConfig.getSetting("MENU_" + alg.id())
+        addButton = ProcessingConfig.getSetting("BUTTON_" + alg.id())
+        icon = ProcessingConfig.getSetting("ICON_" + alg.id())
+        if icon and os.path.exists(icon):
+            icon = QIcon(icon)
+        else:
+            icon = None
+        if menuPath:
+            paths = menuPath.split("/")
+            addAlgorithmEntry(alg, paths[0], paths[-1], addButton=addButton, icon=icon)
 
 
 def removeMenus():
-    for provider in list(algList.algs.values()):
-        for alg in list(provider.values()):
-            menuPath = ProcessingConfig.getSetting("MENU_" + alg.commandLineName())
-            if menuPath:
-                paths = menuPath.split("/")
-                removeAlgorithmEntry(alg, paths[0], paths[-1])
+    for alg in QgsApplication.processingRegistry().algorithms():
+        menuPath = ProcessingConfig.getSetting("MENU_" + alg.id())
+        if menuPath:
+            paths = menuPath.split("/")
+            removeAlgorithmEntry(alg, paths[0], paths[-1])
 
 
 def addAlgorithmEntry(alg, menuName, submenuName, actionText=None, icon=None, addButton=False):
-    action = QAction(icon or alg.getIcon(), actionText or alg.i18n_name or alg.name, iface.mainWindow())
+    action = QAction(icon or alg.icon(), actionText or alg.displayName(), iface.mainWindow())
     action.triggered.connect(lambda: _executeAlgorithm(alg))
-    action.setObjectName("mProcessingUserMenu_%s" % alg.commandLineName())
+    action.setObjectName("mProcessingUserMenu_%s" % alg.id())
 
     if menuName:
         menu = getMenu(menuName, iface.mainWindow().menuBar())
@@ -195,18 +193,18 @@ def removeAlgorithmEntry(alg, menuName, submenuName, actionText=None, delButton=
 
 
 def _executeAlgorithm(alg):
-    message = alg.checkBeforeOpeningParametersDialog()
-    if message:
+    ok, message = alg.canExecute()
+    if not ok:
         dlg = MessageDialog()
         dlg.setTitle(Processing.tr('Missing dependency'))
         dlg.setMessage(
             Processing.tr('<h3>Missing dependency. This algorithm cannot '
-                          'be run :-( </h3>\n%s') % message)
+                          'be run :-( </h3>\n{0}').format(message))
         dlg.exec_()
         return
-    alg = alg.getCopy()
-    if (alg.getVisibleParametersCount() + alg.getVisibleOutputsCount()) > 0:
-        dlg = alg.getCustomParametersDialog()
+
+    if (alg.countVisibleParameters()) > 0:
+        dlg = alg.createCustomParametersWidget(None)
         if not dlg:
             dlg = AlgorithmDialog(alg)
         canvas = iface.mapCanvas()
@@ -220,10 +218,12 @@ def _executeAlgorithm(alg):
                 pass
             canvas.setMapTool(prevMapTool)
     else:
-        progress = MessageBarProgress()
-        runalg(alg, progress)
-        handleAlgorithmResults(alg, progress)
-        progress.close()
+        feedback = MessageBarProgress()
+        context = dataobjects.createContext(feedback)
+        parameters = {}
+        ret, results = execute(alg, parameters, context, feedback)
+        handleAlgorithmResults(alg, context, feedback)
+        feedback.close()
 
 
 def getMenu(name, parent):
@@ -236,6 +236,6 @@ def getMenu(name, parent):
 
 def findAction(actions, alg, actionText=None):
     for action in actions:
-        if action.text() in [actionText, alg.i18n_name, alg.name]:
+        if action.text() in [actionText, alg.displayName(), alg.name()]:
             return action
     return None

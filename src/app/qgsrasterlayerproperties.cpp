@@ -22,17 +22,16 @@
 #include "qgsapplication.h"
 #include "qgsbilinearrasterresampler.h"
 #include "qgsbrightnesscontrastfilter.h"
-#include "qgscontexthelp.h"
 #include "qgscontrastenhancement.h"
 #include "qgscoordinatetransform.h"
 #include "qgscubicrasterresampler.h"
-#include "qgsgenericprojectionselector.h"
+#include "qgsprojectionselectiondialog.h"
 #include "qgslogger.h"
 #include "qgsmapcanvas.h"
-#include "qgsmaplayerregistry.h"
 #include "qgsmaplayerstyleguiutils.h"
 #include "qgsmaptoolemitpoint.h"
 #include "qgsmaptopixel.h"
+#include "qgsmetadatawidget.h"
 #include "qgsmultibandcolorrenderer.h"
 #include "qgsmultibandcolorrendererwidget.h"
 #include "qgspalettedrendererwidget.h"
@@ -53,10 +52,10 @@
 #include "qgssinglebandpseudocolorrendererwidget.h"
 #include "qgshuesaturationfilter.h"
 #include "qgshillshaderendererwidget.h"
+#include "qgssettings.h"
 
 #include <QTableWidgetItem>
 #include <QHeaderView>
-
 #include <QTextStream>
 #include <QFileDialog>
 #include <QMessageBox>
@@ -66,84 +65,103 @@
 #include <QPolygonF>
 #include <QColorDialog>
 #include <QList>
-#include <QSettings>
 #include <QMouseEvent>
 #include <QVector>
 
-QgsRasterLayerProperties::QgsRasterLayerProperties( QgsMapLayer* lyr, QgsMapCanvas* theCanvas, QWidget *parent, Qt::WindowFlags fl )
-    : QgsOptionsDialogBase( "RasterLayerProperties", parent, fl )
+QgsRasterLayerProperties::QgsRasterLayerProperties( QgsMapLayer *lyr, QgsMapCanvas *canvas, QWidget *parent, Qt::WindowFlags fl )
+  : QgsOptionsDialogBase( QStringLiteral( "RasterLayerProperties" ), parent, fl )
     // Constant that signals property not used.
-    , TRSTRING_NOT_SET( tr( "Not Set" ) )
-    , mDefaultStandardDeviation( 0 )
-    , mDefaultRedBand( 0 )
-    , mDefaultGreenBand( 0 )
-    , mDefaultBlueBand( 0 )
-    , mRasterLayer( qobject_cast<QgsRasterLayer *>( lyr ) )
-    , mRendererWidget( nullptr )
-    , mGradientHeight( 0.0 )
-    , mGradientWidth( 0.0 )
-    , mMapCanvas( theCanvas )
-    , mHistogramWidget( nullptr )
+  , TRSTRING_NOT_SET( tr( "Not Set" ) )
+  , mDefaultStandardDeviation( 0 )
+  , mDefaultRedBand( 0 )
+  , mDefaultGreenBand( 0 )
+  , mDefaultBlueBand( 0 )
+  , mRasterLayer( qobject_cast<QgsRasterLayer *>( lyr ) )
+  , mGradientHeight( 0.0 )
+  , mGradientWidth( 0.0 )
+  , mMapCanvas( canvas )
+  , mMetadataFilled( false )
 {
   mGrayMinimumMaximumEstimated = true;
   mRGBMinimumMaximumEstimated = true;
 
   setupUi( this );
+  connect( mLayerOrigNameLineEd, &QLineEdit::textEdited, this, &QgsRasterLayerProperties::mLayerOrigNameLineEd_textEdited );
+  connect( buttonBuildPyramids, &QPushButton::clicked, this, &QgsRasterLayerProperties::buttonBuildPyramids_clicked );
+  connect( pbnAddValuesFromDisplay, &QToolButton::clicked, this, &QgsRasterLayerProperties::pbnAddValuesFromDisplay_clicked );
+  connect( pbnAddValuesManually, &QToolButton::clicked, this, &QgsRasterLayerProperties::pbnAddValuesManually_clicked );
+  connect( mCrsSelector, &QgsProjectionSelectionWidget::crsChanged, this, &QgsRasterLayerProperties::mCrsSelector_crsChanged );
+  connect( pbnDefaultValues, &QToolButton::clicked, this, &QgsRasterLayerProperties::pbnDefaultValues_clicked );
+  connect( pbnExportTransparentPixelValues, &QToolButton::clicked, this, &QgsRasterLayerProperties::pbnExportTransparentPixelValues_clicked );
+  connect( pbnImportTransparentPixelValues, &QToolButton::clicked, this, &QgsRasterLayerProperties::pbnImportTransparentPixelValues_clicked );
+  connect( pbnRemoveSelectedRow, &QToolButton::clicked, this, &QgsRasterLayerProperties::pbnRemoveSelectedRow_clicked );
+  connect( mRenderTypeComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, &QgsRasterLayerProperties::mRenderTypeComboBox_currentIndexChanged );
+  connect( mResetColorRenderingBtn, &QToolButton::clicked, this, &QgsRasterLayerProperties::mResetColorRenderingBtn_clicked );
   // QgsOptionsDialogBase handles saving/restoring of geometry, splitter and current tab states,
   // switching vertical tabs between icon/text to icon-only modes (splitter collapsed to left),
   // and connecting QDialogButtonBox's accepted/rejected signals to dialog's accept/reject slots
   initOptionsBase( false );
 
-  QPushButton* b = new QPushButton( tr( "Style" ) );
-  QMenu* m = new QMenu( this );
-  m->addAction( tr( "Load Style..." ), this, SLOT( loadStyle_clicked() ) );
-  m->addAction( tr( "Save Style..." ), this, SLOT( saveStyleAs_clicked() ) );
-  m->addSeparator();
-  m->addAction( tr( "Save as Default" ), this, SLOT( saveDefaultStyle_clicked() ) );
-  m->addAction( tr( "Restore Default" ), this, SLOT( loadDefaultStyle_clicked() ) );
-  b->setMenu( m );
-  connect( m, SIGNAL( aboutToShow() ), this, SLOT( aboutToShowStyleMenu() ) );
-  buttonBox->addButton( b, QDialogButtonBox::ResetRole );
+  connect( buttonBox, &QDialogButtonBox::helpRequested, this, &QgsRasterLayerProperties::showHelp );
 
-  connect( lyr->styleManager(), SIGNAL( currentStyleChanged( QString ) ), this, SLOT( syncToLayer() ) );
+  mBtnStyle = new QPushButton( tr( "Style" ) );
+  QMenu *menuStyle = new QMenu( this );
+  menuStyle->addAction( tr( "Load Style…" ), this, SLOT( loadStyle_clicked() ) );
+  menuStyle->addAction( tr( "Save Style…" ), this, SLOT( saveStyleAs_clicked() ) );
+  menuStyle->addSeparator();
+  menuStyle->addAction( tr( "Save as Default" ), this, SLOT( saveDefaultStyle_clicked() ) );
+  menuStyle->addAction( tr( "Restore Default" ), this, SLOT( loadDefaultStyle_clicked() ) );
+  mBtnStyle->setMenu( menuStyle );
+  connect( menuStyle, &QMenu::aboutToShow, this, &QgsRasterLayerProperties::aboutToShowStyleMenu );
+  buttonBox->addButton( mBtnStyle, QDialogButtonBox::ResetRole );
 
-  connect( this, SIGNAL( accepted() ), this, SLOT( apply() ) );
-  connect( this, SIGNAL( rejected() ), this, SLOT( onCancel() ) );
+  mBtnMetadata = new QPushButton( tr( "Metadata" ), this );
+  QMenu *menuMetadata = new QMenu( this );
+  mActionLoadMetadata = menuMetadata->addAction( tr( "Load Metadata…" ), this, SLOT( loadMetadata() ) );
+  mActionSaveMetadataAs = menuMetadata->addAction( tr( "Save Metadata…" ), this, SLOT( saveMetadataAs() ) );
+  menuMetadata->addSeparator();
+  menuMetadata->addAction( tr( "Save as Default" ), this, SLOT( saveDefaultMetadata() ) );
+  menuMetadata->addAction( tr( "Restore Default" ), this, SLOT( loadDefaultMetadata() ) );
+  mBtnMetadata->setMenu( menuMetadata );
+  buttonBox->addButton( mBtnMetadata, QDialogButtonBox::ResetRole );
 
-  connect( buttonBox->button( QDialogButtonBox::Apply ), SIGNAL( clicked() ), this, SLOT( apply() ) );
+  connect( lyr->styleManager(), &QgsMapLayerStyleManager::currentStyleChanged, this, &QgsRasterLayerProperties::syncToLayer );
 
-  connect( mOptionsStackedWidget, SIGNAL( currentChanged( int ) ), this, SLOT( mOptionsStackedWidget_CurrentChanged( int ) ) );
+  connect( this, &QDialog::accepted, this, &QgsRasterLayerProperties::apply );
+  connect( this, &QDialog::rejected, this, &QgsRasterLayerProperties::onCancel );
 
-  connect( sliderTransparency, SIGNAL( valueChanged( int ) ), this, SLOT( sliderTransparency_valueChanged( int ) ) );
+  connect( buttonBox->button( QDialogButtonBox::Apply ), &QAbstractButton::clicked, this, &QgsRasterLayerProperties::apply );
 
   // brightness/contrast controls
-  connect( mSliderBrightness, SIGNAL( valueChanged( int ) ), mBrightnessSpinBox, SLOT( setValue( int ) ) );
-  connect( mBrightnessSpinBox, SIGNAL( valueChanged( int ) ), mSliderBrightness, SLOT( setValue( int ) ) );
+  connect( mSliderBrightness, &QAbstractSlider::valueChanged, mBrightnessSpinBox, &QSpinBox::setValue );
+  connect( mBrightnessSpinBox, static_cast < void ( QSpinBox::* )( int ) > ( &QSpinBox::valueChanged ), mSliderBrightness, &QAbstractSlider::setValue );
 
-  connect( mSliderContrast, SIGNAL( valueChanged( int ) ), mContrastSpinBox, SLOT( setValue( int ) ) );
-  connect( mContrastSpinBox, SIGNAL( valueChanged( int ) ), mSliderContrast, SLOT( setValue( int ) ) );
+  connect( mSliderContrast, &QAbstractSlider::valueChanged, mContrastSpinBox, &QSpinBox::setValue );
+  connect( mContrastSpinBox, static_cast < void ( QSpinBox::* )( int ) > ( &QSpinBox::valueChanged ), mSliderContrast, &QAbstractSlider::setValue );
 
   // Connect saturation slider and spin box
-  connect( sliderSaturation, SIGNAL( valueChanged( int ) ), spinBoxSaturation, SLOT( setValue( int ) ) );
-  connect( spinBoxSaturation, SIGNAL( valueChanged( int ) ), sliderSaturation, SLOT( setValue( int ) ) );
+  connect( sliderSaturation, &QAbstractSlider::valueChanged, spinBoxSaturation, &QSpinBox::setValue );
+  connect( spinBoxSaturation, static_cast < void ( QSpinBox::* )( int ) > ( &QSpinBox::valueChanged ), sliderSaturation, &QAbstractSlider::setValue );
 
   // Connect colorize strength slider and spin box
-  connect( sliderColorizeStrength, SIGNAL( valueChanged( int ) ), spinColorizeStrength, SLOT( setValue( int ) ) );
-  connect( spinColorizeStrength, SIGNAL( valueChanged( int ) ), sliderColorizeStrength, SLOT( setValue( int ) ) );
+  connect( sliderColorizeStrength, &QAbstractSlider::valueChanged, spinColorizeStrength, &QSpinBox::setValue );
+  connect( spinColorizeStrength, static_cast < void ( QSpinBox::* )( int ) > ( &QSpinBox::valueChanged ), sliderColorizeStrength, &QAbstractSlider::setValue );
 
   // enable or disable saturation slider and spin box depending on grayscale combo choice
-  connect( comboGrayscale, SIGNAL( currentIndexChanged( int ) ), this, SLOT( toggleSaturationControls( int ) ) );
+  connect( comboGrayscale, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, &QgsRasterLayerProperties::toggleSaturationControls );
 
   // enable or disable colorize colorbutton with colorize checkbox
-  connect( mColorizeCheck, SIGNAL( toggled( bool ) ), this, SLOT( toggleColorizeControls( bool ) ) );
+  connect( mColorizeCheck, &QAbstractButton::toggled, this, &QgsRasterLayerProperties::toggleColorizeControls );
 
   // enable or disable Build Pyramids button depending on selection in pyramid list
-  connect( lbxPyramidResolutions, SIGNAL( itemSelectionChanged() ), this, SLOT( toggleBuildPyramidsButton() ) );
+  connect( lbxPyramidResolutions, &QListWidget::itemSelectionChanged, this, &QgsRasterLayerProperties::toggleBuildPyramidsButton );
+
+  connect( mRefreshLayerCheckBox, &QCheckBox::toggled, mRefreshLayerIntervalSpinBox, &QDoubleSpinBox::setEnabled );
 
   // set up the scale based layer visibility stuff....
   mScaleRangeWidget->setMapCanvas( mMapCanvas );
   chkUseScaleDependentRendering->setChecked( lyr->hasScaleBasedVisibility() );
-  mScaleRangeWidget->setScaleRange( 1.0 / lyr->maximumScale(), 1.0 / lyr->minimumScale() ); // caution: layer uses scale denoms, widget uses true scales
+  mScaleRangeWidget->setScaleRange( lyr->minimumScale(), lyr->maximumScale() );
 
   leNoDataValue->setValidator( new QDoubleValidator( -std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), 1000, this ) );
 
@@ -151,18 +169,18 @@ QgsRasterLayerProperties::QgsRasterLayerProperties( QgsMapLayer* lyr, QgsMapCanv
   QIcon myPyramidPixmap( QgsApplication::getThemeIcon( "/mIconPyramid.png" ) );
   QIcon myNoPyramidPixmap( QgsApplication::getThemeIcon( "/mIconNoPyramid.png" ) );
 
-  pbnAddValuesManually->setIcon( QgsApplication::getThemeIcon( "/symbologyAdd.svg" ) );
-  pbnAddValuesFromDisplay->setIcon( QgsApplication::getThemeIcon( "/mActionContextHelp.png" ) );
-  pbnRemoveSelectedRow->setIcon( QgsApplication::getThemeIcon( "/symbologyRemove.svg" ) );
-  pbnDefaultValues->setIcon( QgsApplication::getThemeIcon( "/mActionOpenTable.svg" ) );
-  pbnImportTransparentPixelValues->setIcon( QgsApplication::getThemeIcon( "/mActionFileOpen.svg" ) );
-  pbnExportTransparentPixelValues->setIcon( QgsApplication::getThemeIcon( "/mActionFileSave.svg" ) );
+  pbnAddValuesManually->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "/symbologyAdd.svg" ) ) );
+  pbnAddValuesFromDisplay->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "/mActionContextHelp.png" ) ) );
+  pbnRemoveSelectedRow->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "/symbologyRemove.svg" ) ) );
+  pbnDefaultValues->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "/mActionOpenTable.svg" ) ) );
+  pbnImportTransparentPixelValues->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "/mActionFileOpen.svg" ) ) );
+  pbnExportTransparentPixelValues->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "/mActionFileSave.svg" ) ) );
 
-  mPixelSelectorTool = nullptr;
   if ( mMapCanvas )
   {
-    mPixelSelectorTool = new QgsMapToolEmitPoint( theCanvas );
-    connect( mPixelSelectorTool, SIGNAL( canvasClicked( const QgsPoint&, Qt::MouseButton ) ), this, SLOT( pixelSelected( const QgsPoint& ) ) );
+    mPixelSelectorTool = qgis::make_unique<QgsMapToolEmitPoint>( canvas );
+    connect( mPixelSelectorTool.get(), &QgsMapToolEmitPoint::canvasClicked, this, &QgsRasterLayerProperties::pixelSelected );
+    connect( mPixelSelectorTool.get(), &QgsMapToolEmitPoint::deactivated, this, &QgsRasterLayerProperties::restoreWindowModality );
   }
   else
   {
@@ -174,7 +192,7 @@ QgsRasterLayerProperties::QgsRasterLayerProperties( QgsMapLayer* lyr, QgsMapCanv
     return;
   }
 
-  QgsRasterDataProvider* provider = mRasterLayer->dataProvider();
+  QgsRasterDataProvider *provider = mRasterLayer->dataProvider();
 
   // Only do pyramids if dealing directly with GDAL.
   if ( provider && provider->capabilities() & QgsRasterDataProvider::BuildPyramids )
@@ -189,7 +207,7 @@ QgsRasterLayerProperties::QgsRasterLayerProperties( QgsMapLayer* lyr, QgsMapCanv
 
     // keep it in sync with qgsrasterpyramidsoptionwidget.cpp
     QString prefix = provider->name() + "/driverOptions/_pyramids/";
-    QSettings mySettings;
+    QgsSettings mySettings;
     QString defaultMethod = mySettings.value( prefix + "resampling", "AVERAGE" ).toString();
     int idx = cboResamplingMethod->findData( defaultMethod );
     if ( idx >= 0 )
@@ -207,13 +225,13 @@ QgsRasterLayerProperties::QgsRasterLayerProperties( QgsMapLayer* lyr, QgsMapCanv
       if ( myRasterPyramidIterator->exists )
       {
         lbxPyramidResolutions->addItem( new QListWidgetItem( myPyramidPixmap,
-                                        QString::number( myRasterPyramidIterator->xDim ) + QLatin1String( " x " ) +
+                                        QString::number( myRasterPyramidIterator->xDim ) + QStringLiteral( " x " ) +
                                         QString::number( myRasterPyramidIterator->yDim ) ) );
       }
       else
       {
         lbxPyramidResolutions->addItem( new QListWidgetItem( myNoPyramidPixmap,
-                                        QString::number( myRasterPyramidIterator->xDim ) + QLatin1String( " x " ) +
+                                        QString::number( myRasterPyramidIterator->xDim ) + QStringLiteral( " x " ) +
                                         QString::number( myRasterPyramidIterator->yDim ) ) );
       }
     }
@@ -233,12 +251,20 @@ QgsRasterLayerProperties::QgsRasterLayerProperties( QgsMapLayer* lyr, QgsMapCanv
     mOptsPage_Histogram->setEnabled( false );
   }
 
+  QVBoxLayout *layout = new QVBoxLayout( metadataFrame );
+  layout->setMargin( 0 );
+  mMetadataWidget = new QgsMetadataWidget( this, mRasterLayer );
+  mMetadataWidget->layout()->setContentsMargins( -1, 0, -1, 0 );
+  mMetadataWidget->setMapCanvas( mMapCanvas );
+  layout->addWidget( mMetadataWidget );
+  metadataFrame->setLayout( layout );
+
   QgsDebugMsg( "Setting crs to " + mRasterLayer->crs().toWkt() );
   QgsDebugMsg( "Setting crs to " + mRasterLayer->crs().authid() + " - " + mRasterLayer->crs().description() );
   mCrsSelector->setCrs( mRasterLayer->crs() );
 
   // Set text for pyramid info box
-  QString pyramidFormat( "<h2>%1</h2><p>%2 %3 %4</p><b><font color='red'><p>%5</p><p>%6</p>" );
+  QString pyramidFormat( QStringLiteral( "<h2>%1</h2><p>%2 %3 %4</p><b><font color='red'><p>%5</p><p>%6</p>" ) );
   QString pyramidHeader    = tr( "Description" );
   QString pyramidSentence1 = tr( "Large resolution raster layers can slow navigation in QGIS." );
   QString pyramidSentence2 = tr( "By creating lower resolution copies of the data (pyramids) performance can be considerably improved as QGIS selects the most suitable resolution to use depending on the level of zoom." );
@@ -255,25 +281,25 @@ QgsRasterLayerProperties::QgsRasterLayerProperties( QgsMapLayer* lyr, QgsMapCanv
 
   //resampling
   mResamplingGroupBox->setSaveCheckedState( true );
-  const QgsRasterRenderer* renderer = mRasterLayer->renderer();
+  const QgsRasterRenderer *renderer = mRasterLayer->renderer();
   mZoomedInResamplingComboBox->insertItem( 0, tr( "Nearest neighbour" ) );
   mZoomedInResamplingComboBox->insertItem( 1, tr( "Bilinear" ) );
   mZoomedInResamplingComboBox->insertItem( 2, tr( "Cubic" ) );
   mZoomedOutResamplingComboBox->insertItem( 0, tr( "Nearest neighbour" ) );
   mZoomedOutResamplingComboBox->insertItem( 1, tr( "Average" ) );
 
-  const QgsRasterResampleFilter* resampleFilter = mRasterLayer->resampleFilter();
+  const QgsRasterResampleFilter *resampleFilter = mRasterLayer->resampleFilter();
   //set combo boxes to current resampling types
   if ( resampleFilter )
   {
-    const QgsRasterResampler* zoomedInResampler = resampleFilter->zoomedInResampler();
+    const QgsRasterResampler *zoomedInResampler = resampleFilter->zoomedInResampler();
     if ( zoomedInResampler )
     {
-      if ( zoomedInResampler->type() == "bilinear" )
+      if ( zoomedInResampler->type() == QLatin1String( "bilinear" ) )
       {
         mZoomedInResamplingComboBox->setCurrentIndex( 1 );
       }
-      else if ( zoomedInResampler->type() == "cubic" )
+      else if ( zoomedInResampler->type() == QLatin1String( "cubic" ) )
       {
         mZoomedInResamplingComboBox->setCurrentIndex( 2 );
       }
@@ -283,10 +309,10 @@ QgsRasterLayerProperties::QgsRasterLayerProperties( QgsMapLayer* lyr, QgsMapCanv
       mZoomedInResamplingComboBox->setCurrentIndex( 0 );
     }
 
-    const QgsRasterResampler* zoomedOutResampler = resampleFilter->zoomedOutResampler();
+    const QgsRasterResampler *zoomedOutResampler = resampleFilter->zoomedOutResampler();
     if ( zoomedOutResampler )
     {
-      if ( zoomedOutResampler->type() == "bilinear" ) //bilinear resampler does averaging when zooming out
+      if ( zoomedOutResampler->type() == QLatin1String( "bilinear" ) ) //bilinear resampler does averaging when zooming out
       {
         mZoomedOutResamplingComboBox->setCurrentIndex( 1 );
       }
@@ -298,19 +324,19 @@ QgsRasterLayerProperties::QgsRasterLayerProperties( QgsMapLayer* lyr, QgsMapCanv
     mMaximumOversamplingSpinBox->setValue( resampleFilter->maxOversampling() );
   }
 
-  btnColorizeColor->setColorDialogTitle( tr( "Select color" ) );
-  btnColorizeColor->setContext( "symbology" );
+  btnColorizeColor->setColorDialogTitle( tr( "Select Color" ) );
+  btnColorizeColor->setContext( QStringLiteral( "symbology" ) );
 
   // Hue and saturation color control
-  const QgsHueSaturationFilter* hueSaturationFilter = mRasterLayer->hueSaturationFilter();
+  const QgsHueSaturationFilter *hueSaturationFilter = mRasterLayer->hueSaturationFilter();
   //set hue and saturation controls to current values
   if ( hueSaturationFilter )
   {
     sliderSaturation->setValue( hueSaturationFilter->saturation() );
-    comboGrayscale->setCurrentIndex(( int ) hueSaturationFilter->grayscaleMode() );
+    comboGrayscale->setCurrentIndex( ( int ) hueSaturationFilter->grayscaleMode() );
 
     // Set initial state of saturation controls based on grayscale mode choice
-    toggleSaturationControls(( int )hueSaturationFilter->grayscaleMode() );
+    toggleSaturationControls( ( int )hueSaturationFilter->grayscaleMode() );
 
     // Set initial state of colorize controls
     mColorizeCheck->setChecked( hueSaturationFilter->colorizeOn() );
@@ -325,20 +351,8 @@ QgsRasterLayerProperties::QgsRasterLayerProperties( QgsMapLayer* lyr, QgsMapCanv
   //transparency band
   if ( provider )
   {
-    cboxTransparencyBand->addItem( tr( "None" ), -1 );
-    int nBands = provider->bandCount();
-    QString bandName;
-    for ( int i = 1; i <= nBands; ++i ) //band numbering seem to start at 1
-    {
-      bandName = provider->generateBandName( i );
-
-      QString colorInterp = provider->colorInterpretationName( i );
-      if ( colorInterp != "Undefined" )
-      {
-        bandName.append( QString( " (%1)" ).arg( colorInterp ) );
-      }
-      cboxTransparencyBand->addItem( bandName, i );
-    }
+    cboxTransparencyBand->setShowNotSetOption( true, tr( "None" ) );
+    cboxTransparencyBand->setLayer( mRasterLayer );
 
 // Alpha band is set in sync()
 #if 0
@@ -362,48 +376,41 @@ QgsRasterLayerProperties::QgsRasterLayerProperties( QgsMapLayer* lyr, QgsMapCanv
   }
 
   //insert renderer widgets into registry
-  QgsRasterRendererRegistry::instance()->insertWidgetFunction( "paletted", QgsPalettedRendererWidget::create );
-  QgsRasterRendererRegistry::instance()->insertWidgetFunction( "multibandcolor", QgsMultiBandColorRendererWidget::create );
-  QgsRasterRendererRegistry::instance()->insertWidgetFunction( "singlebandpseudocolor", QgsSingleBandPseudoColorRendererWidget::create );
-  QgsRasterRendererRegistry::instance()->insertWidgetFunction( "singlebandgray", QgsSingleBandGrayRendererWidget::create );
-  QgsRasterRendererRegistry::instance()->insertWidgetFunction( "hillshade", QgsHillshadeRendererWidget::create );
+  QgsApplication::rasterRendererRegistry()->insertWidgetFunction( QStringLiteral( "paletted" ), QgsPalettedRendererWidget::create );
+  QgsApplication::rasterRendererRegistry()->insertWidgetFunction( QStringLiteral( "multibandcolor" ), QgsMultiBandColorRendererWidget::create );
+  QgsApplication::rasterRendererRegistry()->insertWidgetFunction( QStringLiteral( "singlebandpseudocolor" ), QgsSingleBandPseudoColorRendererWidget::create );
+  QgsApplication::rasterRendererRegistry()->insertWidgetFunction( QStringLiteral( "singlebandgray" ), QgsSingleBandGrayRendererWidget::create );
+  QgsApplication::rasterRendererRegistry()->insertWidgetFunction( QStringLiteral( "hillshade" ), QgsHillshadeRendererWidget::create );
 
   //fill available renderers into combo box
   QgsRasterRendererRegistryEntry entry;
-  Q_FOREACH ( const QString& name, QgsRasterRendererRegistry::instance()->renderersList() )
+  mDisableRenderTypeComboBoxCurrentIndexChanged = true;
+  Q_FOREACH ( const QString &name, QgsApplication::rasterRendererRegistry()->renderersList() )
   {
-    if ( QgsRasterRendererRegistry::instance()->rendererData( name, entry ) )
+    if ( QgsApplication::rasterRendererRegistry()->rendererData( name, entry ) )
     {
-      if (( mRasterLayer->rasterType() != QgsRasterLayer::ColorLayer && entry.name != "singlebandcolordata" ) ||
-          ( mRasterLayer->rasterType() == QgsRasterLayer::ColorLayer && entry.name == "singlebandcolordata" ) )
+      if ( ( mRasterLayer->rasterType() != QgsRasterLayer::ColorLayer && entry.name != QLatin1String( "singlebandcolordata" ) ) ||
+           ( mRasterLayer->rasterType() == QgsRasterLayer::ColorLayer && entry.name == QLatin1String( "singlebandcolordata" ) ) )
       {
         mRenderTypeComboBox->addItem( entry.visibleName, entry.name );
       }
     }
   }
+  mDisableRenderTypeComboBoxCurrentIndexChanged = false;
 
+  int widgetIndex = 0;
   if ( renderer )
   {
     QString rendererType = renderer->type();
-    int widgetIndex = mRenderTypeComboBox->findData( rendererType );
+    widgetIndex = mRenderTypeComboBox->findData( rendererType );
     if ( widgetIndex != -1 )
     {
+      mDisableRenderTypeComboBoxCurrentIndexChanged = true;
       mRenderTypeComboBox->setCurrentIndex( widgetIndex );
+      mDisableRenderTypeComboBoxCurrentIndexChanged = false;
     }
 
-    //prevent change between singleband color renderer and the other renderers
-    // No more necessary, combo entries according to layer type
-#if 0
-    if ( rendererType == "singlebandcolordata" )
-    {
-      mRenderTypeComboBox->setEnabled( false );
-    }
-    else
-    {
-      mRenderTypeComboBox->removeItem( mRenderTypeComboBox->findData( "singlebandcolordata" ) );
-    }
-#endif
-    if ( rendererType == "singlebandcolordata" && mRenderTypeComboBox->count() == 1 )
+    if ( rendererType == QLatin1String( "singlebandcolordata" ) && mRenderTypeComboBox->count() == 1 )
     {
       // no band rendering options for singlebandcolordata, so minimize group box
       QSizePolicy sizep = mBandRenderingGrpBx->sizePolicy();
@@ -412,34 +419,42 @@ QgsRasterLayerProperties::QgsRasterLayerProperties( QgsMapLayer* lyr, QgsMapCanv
       mBandRenderingGrpBx->setSizePolicy( sizep );
       mBandRenderingGrpBx->updateGeometry();
     }
+
+    if ( mRasterLayer->providerType() != QStringLiteral( "wms" ) )
+    {
+      mWMSPrintGroupBox->hide();
+      mPublishDataSourceUrlCheckBox->hide();
+      mBackgroundLayerCheckBox->hide();
+    }
   }
-  on_mRenderTypeComboBox_currentIndexChanged( mRenderTypeComboBox->currentIndex() );
+
+  mRenderTypeComboBox_currentIndexChanged( widgetIndex );
 
   // update based on lyr's current state
   sync();
 
-  QSettings settings;
+  QgsSettings settings;
   // if dialog hasn't been opened/closed yet, default to Styles tab, which is used most often
   // this will be read by restoreOptionsBaseUi()
-  if ( !settings.contains( QString( "/Windows/RasterLayerProperties/tab" ) ) )
+  if ( !settings.contains( QStringLiteral( "/Windows/RasterLayerProperties/tab" ) ) )
   {
-    settings.setValue( QString( "/Windows/RasterLayerProperties/tab" ),
+    settings.setValue( QStringLiteral( "Windows/RasterLayerProperties/tab" ),
                        mOptStackedWidget->indexOf( mOptsPage_Style ) );
   }
 
-  mResetColorRenderingBtn->setIcon( QgsApplication::getThemeIcon( "/mActionUndo.svg" ) );
+  mResetColorRenderingBtn->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "/mActionUndo.svg" ) ) );
 
   QString title = QString( tr( "Layer Properties - %1" ) ).arg( lyr->name() );
+
+  if ( !mRasterLayer->styleManager()->isDefault( mRasterLayer->styleManager()->currentStyle() ) )
+    title += QStringLiteral( " (%1)" ).arg( mRasterLayer->styleManager()->currentStyle() );
   restoreOptionsBaseUi( title );
+  optionsStackedWidget_CurrentChanged( mOptionsStackedWidget->currentIndex() );
 } // QgsRasterLayerProperties ctor
 
 
 QgsRasterLayerProperties::~QgsRasterLayerProperties()
 {
-  if ( mPixelSelectorTool )
-  {
-    delete mPixelSelectorTool;
-  }
 }
 
 void QgsRasterLayerProperties::setupTransparencyTable( int nBands )
@@ -479,11 +494,11 @@ void QgsRasterLayerProperties::setupTransparencyTable( int nBands )
     tableTransparency->setHorizontalHeaderItem( 2, new QTableWidgetItem( tr( "Percent Transparent" ) ) );
   }
 
-  tableTransparency->horizontalHeader()->setResizeMode( 0, QHeaderView::Stretch );
-  tableTransparency->horizontalHeader()->setResizeMode( 1, QHeaderView::Stretch );
+  tableTransparency->horizontalHeader()->setSectionResizeMode( 0, QHeaderView::Stretch );
+  tableTransparency->horizontalHeader()->setSectionResizeMode( 1, QHeaderView::Stretch );
 }
 
-void QgsRasterLayerProperties::populateTransparencyTable( QgsRasterRenderer* renderer )
+void QgsRasterLayerProperties::populateTransparencyTable( QgsRasterRenderer *renderer )
 {
   if ( !mRasterLayer )
   {
@@ -498,7 +513,7 @@ void QgsRasterLayerProperties::populateTransparencyTable( QgsRasterRenderer* ren
   int nBands = renderer->usesBands().size();
   setupTransparencyTable( nBands );
 
-  const QgsRasterTransparency* rasterTransparency = renderer->rasterTransparency();
+  const QgsRasterTransparency *rasterTransparency = renderer->rasterTransparency();
   if ( !rasterTransparency )
   {
     return;
@@ -537,27 +552,52 @@ void QgsRasterLayerProperties::populateTransparencyTable( QgsRasterRenderer* ren
   tableTransparency->resizeRowsToContents();
 }
 
-void QgsRasterLayerProperties::setRendererWidget( const QString& rendererName )
+void QgsRasterLayerProperties::setRendererWidget( const QString &rendererName )
 {
   QgsDebugMsg( "rendererName = " + rendererName );
-  QgsRasterRendererWidget* oldWidget = mRendererWidget;
+  QgsRasterRendererWidget *oldWidget = mRendererWidget;
+  QgsRasterRenderer *oldRenderer = mRasterLayer->renderer();
+
+  int alphaBand = -1;
+  double opacity = 1;
+  if ( oldRenderer )
+  {
+    // Retain alpha band and opacity when switching renderer
+    alphaBand = oldRenderer->alphaBand();
+    opacity = oldRenderer->opacity();
+  }
 
   QgsRasterRendererRegistryEntry rendererEntry;
-  if ( QgsRasterRendererRegistry::instance()->rendererData( rendererName, rendererEntry ) )
+  if ( QgsApplication::rasterRendererRegistry()->rendererData( rendererName, rendererEntry ) )
   {
     if ( rendererEntry.widgetCreateFunction ) //single band color data renderer e.g. has no widget
     {
       QgsDebugMsg( "renderer has widgetCreateFunction" );
       // Current canvas extent (used to calc min/max) in layer CRS
       QgsRectangle myExtent = mMapCanvas->mapSettings().outputExtentToLayerExtent( mRasterLayer, mMapCanvas->extent() );
+      if ( oldWidget && ( !oldRenderer || rendererName != oldRenderer->type() ) )
+      {
+        if ( rendererName == QLatin1String( "singlebandgray" ) )
+        {
+          whileBlocking( mRasterLayer )->setRenderer( QgsApplication::rasterRendererRegistry()->defaultRendererForDrawingStyle( QgsRaster::SingleBandGray, mRasterLayer->dataProvider() ) );
+          whileBlocking( mRasterLayer )->setDefaultContrastEnhancement();
+        }
+        else if ( rendererName == QLatin1String( "multibandcolor" ) )
+        {
+          whileBlocking( mRasterLayer )->setRenderer( QgsApplication::rasterRendererRegistry()->defaultRendererForDrawingStyle( QgsRaster::MultiBandColor, mRasterLayer->dataProvider() ) );
+          whileBlocking( mRasterLayer )->setDefaultContrastEnhancement();
+        }
+      }
+      mRasterLayer->renderer()->setAlphaBand( alphaBand );
+      mRasterLayer->renderer()->setOpacity( opacity );
       mRendererWidget = rendererEntry.widgetCreateFunction( mRasterLayer, myExtent );
       mRendererWidget->setMapCanvas( mMapCanvas );
       mRendererStackedWidget->addWidget( mRendererWidget );
       if ( oldWidget )
       {
         //compare used bands in new and old renderer and reset transparency dialog if different
-        QgsRasterRenderer* oldRenderer = oldWidget->renderer();
-        QgsRasterRenderer* newRenderer = mRendererWidget->renderer();
+        QgsRasterRenderer *oldRenderer = oldWidget->renderer();
+        QgsRasterRenderer *newRenderer = mRendererWidget->renderer();
         QList<int> oldBands = oldRenderer->usesBands();
         QList<int> newBands = newRenderer->usesBands();
         if ( oldBands != newBands )
@@ -580,7 +620,7 @@ void QgsRasterLayerProperties::setRendererWidget( const QString& rendererName )
 }
 
 /**
-  @note moved from ctor
+  \note moved from ctor
 
   Previously this dialog was created anew with each right-click pop-up menu
   invocation.  Changed so that the dialog always exists after first
@@ -590,14 +630,14 @@ void QgsRasterLayerProperties::setRendererWidget( const QString& rendererName )
 */
 void QgsRasterLayerProperties::sync()
 {
-  QSettings myQSettings;
+  QgsSettings myQSettings;
 
   if ( mRasterLayer->dataProvider()->dataType( 1 ) == Qgis::ARGB32
        || mRasterLayer->dataProvider()->dataType( 1 ) == Qgis::ARGB32_Premultiplied )
   {
     gboxNoDataValue->setEnabled( false );
     gboxCustomTransparency->setEnabled( false );
-    mOptionsStackedWidget->setCurrentWidget( mOptsPage_Metadata );
+    mOptionsStackedWidget->setCurrentWidget( mOptsPage_Server );
   }
 
   // TODO: Wouldn't it be better to just removeWidget() the tabs than delete them? [LS]
@@ -627,7 +667,7 @@ void QgsRasterLayerProperties::sync()
    * Style tab (brightness and contrast)
    */
 
-  QgsBrightnessContrastFilter* brightnessFilter = mRasterLayer->brightnessFilter();
+  QgsBrightnessContrastFilter *brightnessFilter = mRasterLayer->brightnessFilter();
   if ( brightnessFilter )
   {
     mSliderBrightness->setValue( brightnessFilter->brightness() );
@@ -641,22 +681,11 @@ void QgsRasterLayerProperties::sync()
    */
 
   //set the transparency slider
-  QgsRasterRenderer* renderer = mRasterLayer->renderer();
+  QgsRasterRenderer *renderer = mRasterLayer->renderer();
   if ( renderer )
   {
-    sliderTransparency->setValue(( 1.0 - renderer->opacity() ) * 255 );
-    //update the transparency percentage label
-    sliderTransparency_valueChanged(( 1.0 - renderer->opacity() ) * 255 );
-
-    int myIndex = renderer->alphaBand();
-    if ( -1 != myIndex )
-    {
-      cboxTransparencyBand->setCurrentIndex( myIndex );
-    }
-    else
-    {
-      cboxTransparencyBand->setCurrentIndex( cboxTransparencyBand->findText( TRSTRING_NOT_SET ) );
-    }
+    mOpacityWidget->setOpacity( renderer->opacity() );
+    cboxTransparencyBand->setBand( renderer->alphaBand() );
   }
 
   //add current NoDataValue to NoDataValue line edit
@@ -673,7 +702,7 @@ void QgsRasterLayerProperties::sync()
 
   mSrcNoDataValueCheckBox->setChecked( mRasterLayer->dataProvider()->useSourceNoDataValue( 1 ) );
 
-  bool enableSrcNoData = mRasterLayer->dataProvider()->sourceHasNoDataValue( 1 ) && !qIsNaN( mRasterLayer->dataProvider()->sourceNoDataValue( 1 ) );
+  bool enableSrcNoData = mRasterLayer->dataProvider()->sourceHasNoDataValue( 1 ) && !std::isnan( mRasterLayer->dataProvider()->sourceNoDataValue( 1 ) );
 
   mSrcNoDataValueCheckBox->setEnabled( enableSrcNoData );
   lblSrcNoDataValue->setEnabled( enableSrcNoData );
@@ -686,8 +715,12 @@ void QgsRasterLayerProperties::sync()
   }
   else
   {
-    leNoDataValue->insert( "" );
+    leNoDataValue->insert( QLatin1String( "" ) );
   }
+
+  mRefreshLayerCheckBox->setChecked( mRasterLayer->hasAutoRefreshEnabled() );
+  mRefreshLayerIntervalSpinBox->setEnabled( mRasterLayer->hasAutoRefreshEnabled() );
+  mRefreshLayerIntervalSpinBox->setValue( mRasterLayer->autoRefreshInterval() / 1000.0 );
 
   populateTransparencyTable( mRasterLayer->renderer() );
 
@@ -702,40 +735,8 @@ void QgsRasterLayerProperties::sync()
    */
 
   //these properties (layer name and label) are provided by the qgsmaplayer superclass
-  leLayerSource->setText( mRasterLayer->source() );
-  mLayerOrigNameLineEd->setText( mRasterLayer->originalName() );
+  mLayerOrigNameLineEd->setText( mRasterLayer->name() );
   leDisplayName->setText( mRasterLayer->name() );
-
-  //display the raster dimensions and no data value
-  if ( mRasterLayer->dataProvider()->capabilities() & QgsRasterDataProvider::Size )
-  {
-    lblColumns->setText( tr( "Columns: %1" ).arg( mRasterLayer->width() ) );
-    lblRows->setText( tr( "Rows: %1" ).arg( mRasterLayer->height() ) );
-  }
-  else
-  {
-    // TODO: Account for fixedWidth and fixedHeight WMS layers
-    lblColumns->setText( tr( "Columns: " ) + tr( "n/a" ) );
-    lblRows->setText( tr( "Rows: " ) + tr( "n/a" ) );
-  }
-
-  if ( mRasterLayer->dataProvider()->dataType( 1 ) == Qgis::ARGB32
-       || mRasterLayer->dataProvider()->dataType( 1 ) == Qgis::ARGB32_Premultiplied )
-  {
-    lblNoData->setText( tr( "No-Data Value: " ) + tr( "n/a" ) );
-  }
-  else
-  {
-    // TODO: all bands
-    if ( mRasterLayer->dataProvider()->sourceHasNoDataValue( 1 ) )
-    {
-      lblNoData->setText( tr( "No-Data Value: %1" ).arg( mRasterLayer->dataProvider()->sourceNoDataValue( 1 ) ) );
-    }
-    else
-    {
-      lblNoData->setText( tr( "No-Data Value: " ) + tr( "n/a" ) );
-    }
-  }
 
   //get the thumbnail for the layer
   QPixmap thumbnail = QPixmap::fromImage( mRasterLayer->previewAsImage( pixmapThumbnail->size() ) );
@@ -761,8 +762,10 @@ void QgsRasterLayerProperties::sync()
    */
   //populate the metadata tab's text browser widget with gdal metadata info
   QString myStyle = QgsApplication::reportStyleSheet();
-  txtbMetadata->document()->setDefaultStyleSheet( myStyle );
-  txtbMetadata->setHtml( mRasterLayer->metadata() );
+  myStyle.append( QStringLiteral( "body { margin: 10px; }\n " ) );
+  teMetadataViewer->document()->setDefaultStyleSheet( myStyle );
+  teMetadataViewer->setHtml( mRasterLayer->htmlMetadata() );
+  mMetadataFilled = true;
 
   // WMS Name as layer short name
   mLayerShortNameLineEdit->setText( mRasterLayer->shortName() );
@@ -798,6 +801,19 @@ void QgsRasterLayerProperties::sync()
 
   mLayerLegendUrlLineEdit->setText( mRasterLayer->legendUrl() );
   mLayerLegendUrlFormatComboBox->setCurrentIndex( mLayerLegendUrlFormatComboBox->findText( mRasterLayer->legendUrlFormat() ) );
+
+  //WMS print layer
+  QVariant wmsPrintLayer = mRasterLayer->customProperty( QStringLiteral( "WMSPrintLayer" ) );
+  if ( wmsPrintLayer.isValid() )
+  {
+    mWMSPrintLayerLineEdit->setText( wmsPrintLayer.toString() );
+  }
+
+  QVariant wmsPublishDataSourceUrl = mRasterLayer->customProperty( QStringLiteral( "WMSPublishDataSourceUrl" ), false );
+  mPublishDataSourceUrlCheckBox->setChecked( wmsPublishDataSourceUrl.toBool() );
+
+  QVariant wmsBackgroundLayer = mRasterLayer->customProperty( QStringLiteral( "WMSBackgroundLayer" ), false );
+  mBackgroundLayerCheckBox->setChecked( wmsBackgroundLayer.toBool() );
 
   /*
    * Legend Tab
@@ -853,20 +869,25 @@ void QgsRasterLayerProperties::apply()
   }
 
   //set renderer from widget
-  QgsRasterRendererWidget* rendererWidget = dynamic_cast<QgsRasterRendererWidget*>( mRendererStackedWidget->currentWidget() );
+  QgsRasterRendererWidget *rendererWidget = dynamic_cast<QgsRasterRendererWidget *>( mRendererStackedWidget->currentWidget() );
   if ( rendererWidget )
   {
+    rendererWidget->doComputations();
+
     mRasterLayer->setRenderer( rendererWidget->renderer() );
   }
 
+  mMetadataWidget->acceptMetadata();
+  mMetadataFilled = false;
+
   //transparency settings
-  QgsRasterRenderer* rasterRenderer = mRasterLayer->renderer();
+  QgsRasterRenderer *rasterRenderer = mRasterLayer->renderer();
   if ( rasterRenderer )
   {
-    rasterRenderer->setAlphaBand( cboxTransparencyBand->currentData().toInt() );
+    rasterRenderer->setAlphaBand( cboxTransparencyBand->currentBand() );
 
     //Walk through each row in table and test value. If not valid set to 0.0 and continue building transparency list
-    QgsRasterTransparency* rasterTransparency = new QgsRasterTransparency();
+    QgsRasterTransparency *rasterTransparency = new QgsRasterTransparency();
     if ( tableTransparency->columnCount() == 4 )
     {
       QgsRasterTransparency::TransparentThreeValuePixel myTransparentPixel;
@@ -899,7 +920,7 @@ void QgsRasterLayerProperties::apply()
     rasterRenderer->setRasterTransparency( rasterTransparency );
 
     //set global transparency
-    rasterRenderer->setOpacity(( 255 - sliderTransparency->value() ) / 255.0 );
+    rasterRenderer->setOpacity( mOpacityWidget->opacity() );
   }
 
   QgsDebugMsg( "processing general tab" );
@@ -910,16 +931,18 @@ void QgsRasterLayerProperties::apply()
 
   // set up the scale based layer visibility stuff....
   mRasterLayer->setScaleBasedVisibility( chkUseScaleDependentRendering->isChecked() );
-  // caution: layer uses scale denoms, widget uses true scales
-  mRasterLayer->setMaximumScale( 1.0 / mScaleRangeWidget->minimumScale() );
-  mRasterLayer->setMinimumScale( 1.0 / mScaleRangeWidget->maximumScale() );
+  mRasterLayer->setMinimumScale( mScaleRangeWidget->minimumScale() );
+  mRasterLayer->setMaximumScale( mScaleRangeWidget->maximumScale() );
+
+  mRasterLayer->setAutoRefreshInterval( mRefreshLayerIntervalSpinBox->value() * 1000.0 );
+  mRasterLayer->setAutoRefreshEnabled( mRefreshLayerCheckBox->isChecked() );
 
   //update the legend pixmap
   // pixmapLegend->setPixmap( mRasterLayer->legendAsPixmap() );
   // pixmapLegend->setScaledContents( true );
   // pixmapLegend->repaint();
 
-  QgsRasterResampleFilter* resampleFilter = mRasterLayer->resampleFilter();
+  QgsRasterResampleFilter *resampleFilter = mRasterLayer->resampleFilter();
   if ( resampleFilter )
   {
     QgsRasterResampler *zoomedInResampler = nullptr;
@@ -953,7 +976,7 @@ void QgsRasterLayerProperties::apply()
   if ( hueSaturationFilter )
   {
     hueSaturationFilter->setSaturation( sliderSaturation->value() );
-    hueSaturationFilter->setGrayscaleMode(( QgsHueSaturationFilter::GrayscaleMode ) comboGrayscale->currentIndex() );
+    hueSaturationFilter->setGrayscaleMode( ( QgsHueSaturationFilter::GrayscaleMode ) comboGrayscale->currentIndex() );
     hueSaturationFilter->setColorizeOn( mColorizeCheck->checkState() );
     hueSaturationFilter->setColorizeColor( btnColorizeColor->color() );
     hueSaturationFilter->setColorizeStrength( sliderColorizeStrength->value() );
@@ -966,20 +989,66 @@ void QgsRasterLayerProperties::apply()
   QPixmap thumbnail = QPixmap::fromImage( mRasterLayer->previewAsImage( pixmapThumbnail->size() ) );
   pixmapThumbnail->setPixmap( thumbnail );
 
+  if ( mRasterLayer->shortName() != mLayerShortNameLineEdit->text() )
+    mMetadataFilled = false;
   mRasterLayer->setShortName( mLayerShortNameLineEdit->text() );
+
+  if ( mRasterLayer->title() != mLayerTitleLineEdit->text() )
+    mMetadataFilled = false;
   mRasterLayer->setTitle( mLayerTitleLineEdit->text() );
+
+  if ( mRasterLayer->abstract() != mLayerAbstractTextEdit->toPlainText() )
+    mMetadataFilled = false;
   mRasterLayer->setAbstract( mLayerAbstractTextEdit->toPlainText() );
+
+  if ( mRasterLayer->keywordList() != mLayerKeywordListLineEdit->text() )
+    mMetadataFilled = false;
   mRasterLayer->setKeywordList( mLayerKeywordListLineEdit->text() );
+
+  if ( mRasterLayer->dataUrl() != mLayerDataUrlLineEdit->text() )
+    mMetadataFilled = false;
   mRasterLayer->setDataUrl( mLayerDataUrlLineEdit->text() );
+
+  if ( mRasterLayer->dataUrlFormat() != mLayerDataUrlFormatComboBox->currentText() )
+    mMetadataFilled = false;
   mRasterLayer->setDataUrlFormat( mLayerDataUrlFormatComboBox->currentText() );
+
   //layer attribution and metadataUrl
+  if ( mRasterLayer->attribution() != mLayerAttributionLineEdit->text() )
+    mMetadataFilled = false;
   mRasterLayer->setAttribution( mLayerAttributionLineEdit->text() );
+
+  if ( mRasterLayer->attributionUrl() != mLayerAttributionUrlLineEdit->text() )
+    mMetadataFilled = false;
   mRasterLayer->setAttributionUrl( mLayerAttributionUrlLineEdit->text() );
+
+  if ( mRasterLayer->metadataUrl() != mLayerMetadataUrlLineEdit->text() )
+    mMetadataFilled = false;
   mRasterLayer->setMetadataUrl( mLayerMetadataUrlLineEdit->text() );
+
+  if ( mRasterLayer->metadataUrlType() != mLayerMetadataUrlTypeComboBox->currentText() )
+    mMetadataFilled = false;
   mRasterLayer->setMetadataUrlType( mLayerMetadataUrlTypeComboBox->currentText() );
+
+  if ( mRasterLayer->metadataUrlFormat() != mLayerMetadataUrlFormatComboBox->currentText() )
+    mMetadataFilled = false;
   mRasterLayer->setMetadataUrlFormat( mLayerMetadataUrlFormatComboBox->currentText() );
+
+  if ( mRasterLayer->legendUrl() != mLayerLegendUrlLineEdit->text() )
+    mMetadataFilled = false;
   mRasterLayer->setLegendUrl( mLayerLegendUrlLineEdit->text() );
+
+  if ( mRasterLayer->legendUrlFormat() != mLayerLegendUrlFormatComboBox->currentText() )
+    mMetadataFilled = false;
   mRasterLayer->setLegendUrlFormat( mLayerLegendUrlFormatComboBox->currentText() );
+
+  if ( !mWMSPrintLayerLineEdit->text().isEmpty() )
+  {
+    mRasterLayer->setCustomProperty( QStringLiteral( "WMSPrintLayer" ), mWMSPrintLayerLineEdit->text() );
+  }
+
+  mRasterLayer->setCustomProperty( "WMSPublishDataSourceUrl", mPublishDataSourceUrlCheckBox->isChecked() );
+  mRasterLayer->setCustomProperty( "WMSBackgroundLayer", mBackgroundLayerCheckBox->isChecked() );
 
   // update symbology
   emit refreshLegend( mRasterLayer->id(), false );
@@ -991,16 +1060,18 @@ void QgsRasterLayerProperties::apply()
   QgsProject::instance()->setDirty( true );
 }//apply
 
-void QgsRasterLayerProperties::on_mLayerOrigNameLineEd_textEdited( const QString& text )
+void QgsRasterLayerProperties::mLayerOrigNameLineEd_textEdited( const QString &text )
 {
-  leDisplayName->setText( mRasterLayer->capitaliseLayerName( text ) );
+  leDisplayName->setText( mRasterLayer->formatLayerName( text ) );
 }
 
-void QgsRasterLayerProperties::on_buttonBuildPyramids_clicked()
+void QgsRasterLayerProperties::buttonBuildPyramids_clicked()
 {
-  QgsRasterDataProvider* provider = mRasterLayer->dataProvider();
+  QgsRasterDataProvider *provider = mRasterLayer->dataProvider();
 
-  connect( provider, SIGNAL( progressUpdate( int ) ), mPyramidProgress, SLOT( setValue( int ) ) );
+  std::unique_ptr< QgsRasterBlockFeedback > feedback( new QgsRasterBlockFeedback() );
+
+  connect( feedback.get(), &QgsRasterBlockFeedback::progressChanged, mPyramidProgress, &QProgressBar::setValue );
   //
   // Go through the list marking any files that are selected in the listview
   // as true so that we can generate pyramids for them.
@@ -1015,7 +1086,7 @@ void QgsRasterLayerProperties::on_buttonBuildPyramids_clicked()
 
   // keep it in sync with qgsrasterpyramidsoptionwidget.cpp
   QString prefix = provider->name() + "/driverOptions/_pyramids/";
-  QSettings mySettings;
+  QgsSettings mySettings;
   QString resamplingMethod( cboResamplingMethod->currentData().toString() );
   mySettings.setValue( prefix + "resampling", resamplingMethod );
 
@@ -1028,35 +1099,40 @@ void QgsRasterLayerProperties::on_buttonBuildPyramids_clicked()
   QString res = provider->buildPyramids(
                   myPyramidList,
                   resamplingMethod,
-                  ( QgsRaster::RasterPyramidsFormat ) cbxPyramidsFormat->currentIndex() );
+                  ( QgsRaster::RasterPyramidsFormat ) cbxPyramidsFormat->currentIndex(),
+                  QStringList(),
+                  feedback.get() );
   QApplication::restoreOverrideCursor();
   mPyramidProgress->setValue( 0 );
   buttonBuildPyramids->setEnabled( false );
-  disconnect( provider, SIGNAL( progressUpdate( int ) ), mPyramidProgress, SLOT( setValue( int ) ) );
   if ( !res.isNull() )
   {
-    if ( res == "ERROR_WRITE_ACCESS" )
+    if ( res == QLatin1String( "CANCELED" ) )
+    {
+      // user canceled
+    }
+    else if ( res == QLatin1String( "ERROR_WRITE_ACCESS" ) )
     {
       QMessageBox::warning( this, tr( "Write access denied" ),
                             tr( "Write access denied. Adjust the file permissions and try again." ) );
     }
-    else if ( res == "ERROR_WRITE_FORMAT" )
+    else if ( res == QLatin1String( "ERROR_WRITE_FORMAT" ) )
     {
       QMessageBox::warning( this, tr( "Building pyramids failed." ),
                             tr( "The file was not writable. Some formats do not "
                                 "support pyramid overviews. Consult the GDAL documentation if in doubt." ) );
     }
-    else if ( res == "FAILED_NOT_SUPPORTED" )
+    else if ( res == QLatin1String( "FAILED_NOT_SUPPORTED" ) )
     {
       QMessageBox::warning( this, tr( "Building pyramids failed." ),
                             tr( "Building pyramid overviews is not supported on this type of raster." ) );
     }
-    else if ( res == "ERROR_JPEG_COMPRESSION" )
+    else if ( res == QLatin1String( "ERROR_JPEG_COMPRESSION" ) )
     {
       QMessageBox::warning( this, tr( "Building pyramids failed." ),
                             tr( "Building internal pyramid overviews is not supported on raster layers with JPEG compression and your current libtiff library." ) );
     }
-    else if ( res == "ERROR_VIRTUAL" )
+    else if ( res == QLatin1String( "ERROR_VIRTUAL" ) )
     {
       QMessageBox::warning( this, tr( "Building pyramids failed." ),
                             tr( "Building pyramid overviews is not supported on this type of raster." ) );
@@ -1081,13 +1157,13 @@ void QgsRasterLayerProperties::on_buttonBuildPyramids_clicked()
     if ( myRasterPyramidIterator->exists )
     {
       lbxPyramidResolutions->addItem( new QListWidgetItem( myPyramidPixmap,
-                                      QString::number( myRasterPyramidIterator->xDim ) + QLatin1String( " x " ) +
+                                      QString::number( myRasterPyramidIterator->xDim ) + QStringLiteral( " x " ) +
                                       QString::number( myRasterPyramidIterator->yDim ) ) );
     }
     else
     {
       lbxPyramidResolutions->addItem( new QListWidgetItem( myNoPyramidPixmap,
-                                      QString::number( myRasterPyramidIterator->xDim ) + QLatin1String( " x " ) +
+                                      QString::number( myRasterPyramidIterator->xDim ) + QStringLiteral( " x " ) +
                                       QString::number( myRasterPyramidIterator->yDim ) ) );
     }
   }
@@ -1098,13 +1174,13 @@ void QgsRasterLayerProperties::on_buttonBuildPyramids_clicked()
 
   //populate the metadata tab's text browser widget with gdal metadata info
   QString myStyle = QgsApplication::reportStyleSheet();
-  txtbMetadata->setHtml( mRasterLayer->metadata() );
-  txtbMetadata->document()->setDefaultStyleSheet( myStyle );
+  teMetadataViewer->setHtml( mRasterLayer->htmlMetadata() );
+  teMetadataViewer->document()->setDefaultStyleSheet( myStyle );
 }
 
-void QgsRasterLayerProperties::on_mRenderTypeComboBox_currentIndexChanged( int index )
+void QgsRasterLayerProperties::mRenderTypeComboBox_currentIndexChanged( int index )
 {
-  if ( index < 0 )
+  if ( index < 0 || mDisableRenderTypeComboBoxCurrentIndexChanged )
   {
     return;
   }
@@ -1113,26 +1189,28 @@ void QgsRasterLayerProperties::on_mRenderTypeComboBox_currentIndexChanged( int i
   setRendererWidget( rendererName );
 }
 
-void QgsRasterLayerProperties::on_pbnAddValuesFromDisplay_clicked()
+void QgsRasterLayerProperties::pbnAddValuesFromDisplay_clicked()
 {
   if ( mMapCanvas && mPixelSelectorTool )
   {
-    mMapCanvas->setMapTool( mPixelSelectorTool );
     //Need to work around the modality of the dialog but can not just hide() it.
+    // According to Qt5 docs, to change modality the dialog needs to be hidden
+    // and shown again.
+    hide();
     setModal( false );
 
-    showMinimized();
+    // Transfer focus to the canvas to use the selector tool
+    mMapCanvas->window()->raise();
+    mMapCanvas->window()->activateWindow();
+    mMapCanvas->window()->setFocus();
+    mMapCanvas->setMapTool( mPixelSelectorTool.get() );
 
-    //Q_ASSERT( parentWidget()->parentWidget() );
-    parentWidget()->activateWindow();
-    parentWidget()->raise();
-    //lower();
   }
 }
 
-void QgsRasterLayerProperties::on_pbnAddValuesManually_clicked()
+void QgsRasterLayerProperties::pbnAddValuesManually_clicked()
 {
-  QgsRasterRenderer* renderer = mRendererWidget->renderer();
+  QgsRasterRenderer *renderer = mRendererWidget->renderer();
   if ( !renderer )
   {
     return;
@@ -1154,19 +1232,21 @@ void QgsRasterLayerProperties::on_pbnAddValuesManually_clicked()
   tableTransparency->resizeRowsToContents();
 }
 
-void QgsRasterLayerProperties::on_mCrsSelector_crsChanged( const QgsCoordinateReferenceSystem& crs )
+void QgsRasterLayerProperties::mCrsSelector_crsChanged( const QgsCoordinateReferenceSystem &crs )
 {
+  QgisApp::instance()->askUserForDatumTransform( crs, QgsProject::instance()->crs() );
   mRasterLayer->setCrs( crs );
+  mMetadataWidget->crsChanged();
 }
 
-void QgsRasterLayerProperties::on_pbnDefaultValues_clicked()
+void QgsRasterLayerProperties::pbnDefaultValues_clicked()
 {
   if ( !mRendererWidget )
   {
     return;
   }
 
-  QgsRasterRenderer* r = mRendererWidget->renderer();
+  QgsRasterRenderer *r = mRendererWidget->renderer();
   if ( !r )
   {
     return;
@@ -1184,10 +1264,10 @@ void QgsRasterLayerProperties::on_pbnDefaultValues_clicked()
 void QgsRasterLayerProperties::setTransparencyCell( int row, int column, double value )
 {
   QgsDebugMsg( QString( "value = %1" ).arg( value, 0, 'g', 17 ) );
-  QgsRasterDataProvider* provider = mRasterLayer->dataProvider();
+  QgsRasterDataProvider *provider = mRasterLayer->dataProvider();
   if ( !provider ) return;
 
-  QgsRasterRenderer* renderer = mRendererWidget->renderer();
+  QgsRasterRenderer *renderer = mRendererWidget->renderer();
   if ( !renderer ) return;
   int nBands = renderer->usesBands().size();
 
@@ -1212,14 +1292,14 @@ void QgsRasterLayerProperties::setTransparencyCell( int row, int column, double 
       case Qgis::Float32:
       case Qgis::Float64:
         lineEdit->setValidator( new QDoubleValidator( nullptr ) );
-        if ( !qIsNaN( value ) )
+        if ( !std::isnan( value ) )
         {
           valueString = QgsRasterBlock::printValue( value );
         }
         break;
       default:
         lineEdit->setValidator( new QIntValidator( nullptr ) );
-        if ( !qIsNaN( value ) )
+        if ( !std::isnan( value ) )
         {
           valueString = QString::number( static_cast<int>( value ) );
         }
@@ -1232,7 +1312,7 @@ void QgsRasterLayerProperties::setTransparencyCell( int row, int column, double 
 
   if ( nBands == 1 && ( column == 0 || column == 1 ) )
   {
-    connect( lineEdit, SIGNAL( textEdited( const QString & ) ), this, SLOT( transparencyCellTextEdited( const QString & ) ) );
+    connect( lineEdit, &QLineEdit::textEdited, this, &QgsRasterLayerProperties::transparencyCellTextEdited );
   }
   tableTransparency->resizeColumnsToContents();
 }
@@ -1262,20 +1342,20 @@ void QgsRasterLayerProperties::adjustTransparencyCellWidth( int row, int column 
   QLineEdit *lineEdit = dynamic_cast<QLineEdit *>( tableTransparency->cellWidget( row, column ) );
   if ( !lineEdit ) return;
 
-  int width = qMax( lineEdit->fontMetrics().width( lineEdit->text() ) + 10, 100 );
-  width = qMax( width, tableTransparency->columnWidth( column ) );
+  int width = std::max( lineEdit->fontMetrics().width( lineEdit->text() ) + 10, 100 );
+  width = std::max( width, tableTransparency->columnWidth( column ) );
 
   lineEdit->setFixedWidth( width );
 }
 
-void QgsRasterLayerProperties::on_pbnExportTransparentPixelValues_clicked()
+void QgsRasterLayerProperties::pbnExportTransparentPixelValues_clicked()
 {
-  QSettings myQSettings;
-  QString myLastDir = myQSettings.value( "lastRasterFileFilterDir", QDir::homePath() ).toString();
+  QgsSettings myQSettings;
+  QString myLastDir = myQSettings.value( QStringLiteral( "lastRasterFileFilterDir" ), QDir::homePath() ).toString();
   QString myFileName = QFileDialog::getSaveFileName( this, tr( "Save file" ), myLastDir, tr( "Textfile" ) + " (*.txt)" );
   if ( !myFileName.isEmpty() )
   {
-    if ( !myFileName.endsWith( ".txt", Qt::CaseInsensitive ) )
+    if ( !myFileName.endsWith( QLatin1String( ".txt" ), Qt::CaseInsensitive ) )
     {
       myFileName = myFileName + ".txt";
     }
@@ -1291,9 +1371,9 @@ void QgsRasterLayerProperties::on_pbnExportTransparentPixelValues_clicked()
         for ( int myTableRunner = 0; myTableRunner < tableTransparency->rowCount(); myTableRunner++ )
         {
           myOutputStream << '\n' << QString::number( transparencyCellValue( myTableRunner, 0 ) ) << "\t"
-          << QString::number( transparencyCellValue( myTableRunner, 1 ) ) << "\t"
-          << QString::number( transparencyCellValue( myTableRunner, 2 ) ) << "\t"
-          << QString::number( transparencyCellValue( myTableRunner, 3 ) );
+                         << QString::number( transparencyCellValue( myTableRunner, 1 ) ) << "\t"
+                         << QString::number( transparencyCellValue( myTableRunner, 2 ) ) << "\t"
+                         << QString::number( transparencyCellValue( myTableRunner, 3 ) );
         }
       }
       else
@@ -1303,8 +1383,8 @@ void QgsRasterLayerProperties::on_pbnExportTransparentPixelValues_clicked()
         for ( int myTableRunner = 0; myTableRunner < tableTransparency->rowCount(); myTableRunner++ )
         {
           myOutputStream << '\n' << QString::number( transparencyCellValue( myTableRunner, 0 ) ) << "\t"
-          << QString::number( transparencyCellValue( myTableRunner, 1 ) ) << "\t"
-          << QString::number( transparencyCellValue( myTableRunner, 2 ) );
+                         << QString::number( transparencyCellValue( myTableRunner, 1 ) ) << "\t"
+                         << QString::number( transparencyCellValue( myTableRunner, 2 ) );
         }
       }
     }
@@ -1315,11 +1395,11 @@ void QgsRasterLayerProperties::on_pbnExportTransparentPixelValues_clicked()
   }
 }
 
-void QgsRasterLayerProperties::transparencyCellTextEdited( const QString & text )
+void QgsRasterLayerProperties::transparencyCellTextEdited( const QString &text )
 {
   Q_UNUSED( text );
   QgsDebugMsg( QString( "text = %1" ).arg( text ) );
-  QgsRasterRenderer* renderer = mRendererWidget->renderer();
+  QgsRasterRenderer *renderer = mRendererWidget->renderer();
   if ( !renderer )
   {
     return;
@@ -1331,9 +1411,9 @@ void QgsRasterLayerProperties::transparencyCellTextEdited( const QString & text 
     if ( !lineEdit ) return;
     int row = -1;
     int column = -1;
-    for ( int r = 0 ; r < tableTransparency->rowCount(); r++ )
+    for ( int r = 0; r < tableTransparency->rowCount(); r++ )
     {
-      for ( int c = 0 ; c < tableTransparency->columnCount(); c++ )
+      for ( int c = 0; c < tableTransparency->columnCount(); c++ )
       {
         if ( tableTransparency->cellWidget( r, c ) == sender() )
         {
@@ -1368,13 +1448,13 @@ void QgsRasterLayerProperties::aboutToShowStyleMenu()
 {
   // this should be unified with QgsVectorLayerProperties::aboutToShowStyleMenu()
 
-  QMenu* m = qobject_cast<QMenu*>( sender() );
+  QMenu *m = qobject_cast<QMenu *>( sender() );
   if ( !m )
     return;
 
   // first get rid of previously added style manager actions (they are dynamic)
   bool gotFirstSeparator = false;
-  QList<QAction*> actions = m->actions();
+  QList<QAction *> actions = m->actions();
   for ( int i = 0; i < actions.count(); ++i )
   {
     if ( actions[i]->isSeparator() )
@@ -1398,7 +1478,7 @@ void QgsRasterLayerProperties::aboutToShowStyleMenu()
 
 void QgsRasterLayerProperties::syncToLayer()
 {
-  QgsRasterRenderer* renderer = mRasterLayer->renderer();
+  QgsRasterRenderer *renderer = mRasterLayer->renderer();
   if ( renderer )
   {
     setRendererWidget( renderer->type() );
@@ -1416,12 +1496,18 @@ void QgsRasterLayerProperties::setTransparencyToEdited( int row )
   mTransparencyToEdited[row] = true;
 }
 
-void QgsRasterLayerProperties::mOptionsStackedWidget_CurrentChanged( int indx )
+void QgsRasterLayerProperties::optionsStackedWidget_CurrentChanged( int index )
 {
+  QgsOptionsDialogBase::optionsStackedWidget_CurrentChanged( index );
+
+  bool isMetadataPanel = ( index == mOptStackedWidget->indexOf( mOptsPage_Metadata ) );
+  mBtnStyle->setVisible( ! isMetadataPanel );
+  mBtnMetadata->setVisible( isMetadataPanel );
+
   if ( !mHistogramWidget )
     return;
 
-  if ( indx == 5 )
+  if ( index == mOptStackedWidget->indexOf( mOptsPage_Histogram ) )
   {
     mHistogramWidget->setActive( true );
   }
@@ -1429,15 +1515,21 @@ void QgsRasterLayerProperties::mOptionsStackedWidget_CurrentChanged( int indx )
   {
     mHistogramWidget->setActive( false );
   }
+
+  if ( index == mOptStackedWidget->indexOf( mOptsPage_Information ) || !mMetadataFilled )
+    //set the metadata contents (which can be expensive)
+    teMetadataViewer->clear();
+  teMetadataViewer->setHtml( mRasterLayer->htmlMetadata() );
+  mMetadataFilled = true;
 }
 
-void QgsRasterLayerProperties::on_pbnImportTransparentPixelValues_clicked()
+void QgsRasterLayerProperties::pbnImportTransparentPixelValues_clicked()
 {
   int myLineCounter = 0;
   bool myImportError = false;
   QString myBadLines;
-  QSettings myQSettings;
-  QString myLastDir = myQSettings.value( "lastRasterFileFilterDir", QDir::homePath() ).toString();
+  QgsSettings myQSettings;
+  QString myLastDir = myQSettings.value( QStringLiteral( "lastRasterFileFilterDir" ), QDir::homePath() ).toString();
   QString myFileName = QFileDialog::getOpenFileName( this, tr( "Open file" ), myLastDir, tr( "Textfile" ) + " (*.txt)" );
   QFile myInputFile( myFileName );
   if ( myInputFile.open( QFile::ReadOnly ) )
@@ -1528,7 +1620,7 @@ void QgsRasterLayerProperties::on_pbnImportTransparentPixelValues_clicked()
   tableTransparency->resizeRowsToContents();
 }
 
-void QgsRasterLayerProperties::on_pbnRemoveSelectedRow_clicked()
+void QgsRasterLayerProperties::pbnRemoveSelectedRow_clicked()
 {
   if ( 0 < tableTransparency->rowCount() )
   {
@@ -1536,25 +1628,22 @@ void QgsRasterLayerProperties::on_pbnRemoveSelectedRow_clicked()
   }
 }
 
-void QgsRasterLayerProperties::pixelSelected( const QgsPoint& canvasPoint )
+void QgsRasterLayerProperties::pixelSelected( const QgsPointXY &canvasPoint, const Qt::MouseButton &btn )
 {
-  QgsRasterRenderer* renderer = mRendererWidget->renderer();
+  Q_UNUSED( btn );
+  QgsRasterRenderer *renderer = mRendererWidget->renderer();
   if ( !renderer )
   {
     return;
   }
 
-  raise();
-  setModal( true );
-  activateWindow();
-
   //Get the pixel values and add a new entry to the transparency table
   if ( mMapCanvas && mPixelSelectorTool )
   {
-    mMapCanvas->unsetMapTool( mPixelSelectorTool );
+    mMapCanvas->unsetMapTool( mPixelSelectorTool.get() );
 
-    const QgsMapSettings& ms = mMapCanvas->mapSettings();
-    QgsPoint myPoint = ms.mapToLayerCoordinates( mRasterLayer, canvasPoint );
+    const QgsMapSettings &ms = mMapCanvas->mapSettings();
+    QgsPointXY myPoint = ms.mapToLayerCoordinates( mRasterLayer, canvasPoint );
 
     QgsRectangle myExtent = ms.mapToLayerCoordinates( mRasterLayer, mMapCanvas->extent() );
     double mapUnitsPerPixel = mMapCanvas->mapUnitsPerPixel();
@@ -1597,13 +1686,6 @@ void QgsRasterLayerProperties::pixelSelected( const QgsPoint& canvasPoint )
   tableTransparency->resizeColumnsToContents();
   tableTransparency->resizeRowsToContents();
 }
-
-void QgsRasterLayerProperties::sliderTransparency_valueChanged( int theValue )
-{
-  //set the transparency percentage label to a suitable value
-  int myInt = static_cast < int >(( theValue / 255.0 ) * 100 );  //255.0 to prevent integer division
-  lblTransparencyPercent->setText( QString::number( myInt ) + '%' );
-}//sliderTransparency_valueChanged
 
 void QgsRasterLayerProperties::toggleSaturationControls( int grayscaleMode )
 {
@@ -1691,7 +1773,7 @@ void QgsRasterLayerProperties::loadDefaultStyle_clicked()
 {
   bool defaultLoadedFlag = false;
   QString myMessage = mRasterLayer->loadDefaultStyle( defaultLoadedFlag );
-  //reset if the default style was loaded ok only
+  //reset if the default style was loaded OK only
   if ( defaultLoadedFlag )
   {
     syncToLayer();
@@ -1729,8 +1811,8 @@ void QgsRasterLayerProperties::saveDefaultStyle_clicked()
 
 void QgsRasterLayerProperties::loadStyle_clicked()
 {
-  QSettings settings;
-  QString lastUsedDir = settings.value( "style/lastStyleDir", QDir::homePath() ).toString();
+  QgsSettings settings;
+  QString lastUsedDir = settings.value( QStringLiteral( "style/lastStyleDir" ), QDir::homePath() ).toString();
 
   QString fileName = QFileDialog::getOpenFileName(
                        this,
@@ -1741,8 +1823,8 @@ void QgsRasterLayerProperties::loadStyle_clicked()
     return;
 
   // ensure the user never omits the extension from the file name
-  if ( !fileName.endsWith( ".qml", Qt::CaseInsensitive ) )
-    fileName += ".qml";
+  if ( !fileName.endsWith( QLatin1String( ".qml" ), Qt::CaseInsensitive ) )
+    fileName += QLatin1String( ".qml" );
 
   mOldStyle = mRasterLayer->styleManager()->style( mRasterLayer->styleManager()->currentStyle() );
 
@@ -1750,7 +1832,7 @@ void QgsRasterLayerProperties::loadStyle_clicked()
   QString message = mRasterLayer->loadNamedStyle( fileName, defaultLoadedFlag );
   if ( defaultLoadedFlag )
   {
-    settings.setValue( "style/lastStyleDir", QFileInfo( fileName ).absolutePath() );
+    settings.setValue( QStringLiteral( "style/lastStyleDir" ), QFileInfo( fileName ).absolutePath() );
     syncToLayer();
   }
   else
@@ -1762,8 +1844,8 @@ void QgsRasterLayerProperties::loadStyle_clicked()
 
 void QgsRasterLayerProperties::saveStyleAs_clicked()
 {
-  QSettings settings;
-  QString lastUsedDir = settings.value( "style/lastStyleDir", QDir::homePath() ).toString();
+  QgsSettings settings;
+  QString lastUsedDir = settings.value( QStringLiteral( "style/lastStyleDir" ), QDir::homePath() ).toString();
 
   QString outputFileName = QFileDialog::getSaveFileName(
                              this,
@@ -1774,18 +1856,123 @@ void QgsRasterLayerProperties::saveStyleAs_clicked()
     return;
 
   // ensure the user never omits the extension from the file name
-  if ( !outputFileName.endsWith( ".qml", Qt::CaseInsensitive ) )
-    outputFileName += ".qml";
+  if ( !outputFileName.endsWith( QLatin1String( ".qml" ), Qt::CaseInsensitive ) )
+    outputFileName += QLatin1String( ".qml" );
 
   apply(); // make sure the style to save is uptodate
 
   bool defaultLoadedFlag = false;
   QString message = mRasterLayer->saveNamedStyle( outputFileName, defaultLoadedFlag );
   if ( defaultLoadedFlag )
-    settings.setValue( "style/lastStyleDir", QFileInfo( outputFileName ).absolutePath() );
+    settings.setValue( QStringLiteral( "style/lastStyleDir" ), QFileInfo( outputFileName ).absolutePath() );
   else
     QMessageBox::information( this, tr( "Saved Style" ), message );
 }
+
+void QgsRasterLayerProperties::restoreWindowModality()
+{
+  hide();
+  setModal( true );
+  show();
+  raise();
+  activateWindow();
+}
+
+//
+//
+// Next four methods for saving and restoring QMD metadata
+//
+//
+
+void QgsRasterLayerProperties::loadMetadata()
+{
+  QgsSettings myQSettings;  // where we keep last used filter in persistent state
+  QString myLastUsedDir = myQSettings.value( QStringLiteral( "style/lastStyleDir" ), QDir::homePath() ).toString();
+
+  QString myFileName = QFileDialog::getOpenFileName( this, tr( "Load layer metadata from metadata file" ), myLastUsedDir,
+                       tr( "QGIS Layer Metadata File" ) + " (*.qmd)" );
+  if ( myFileName.isNull() )
+  {
+    return;
+  }
+
+  QString myMessage;
+  bool defaultLoadedFlag = false;
+  myMessage = mRasterLayer->loadNamedMetadata( myFileName, defaultLoadedFlag );
+
+  //reset if the default style was loaded OK only
+  if ( defaultLoadedFlag )
+  {
+    mMetadataWidget->setMetadata( mRasterLayer->metadata() );
+  }
+  else
+  {
+    //let the user know what went wrong
+    QMessageBox::warning( this, tr( "Load Metadata" ), myMessage );
+  }
+
+  QFileInfo myFI( myFileName );
+  QString myPath = myFI.path();
+  myQSettings.setValue( QStringLiteral( "style/lastStyleDir" ), myPath );
+
+  activateWindow(); // set focus back to properties dialog
+}
+
+void QgsRasterLayerProperties::saveMetadataAs()
+{
+  QgsSettings myQSettings;  // where we keep last used filter in persistent state
+  QString myLastUsedDir = myQSettings.value( QStringLiteral( "style/lastStyleDir" ), QDir::homePath() ).toString();
+
+  QString myOutputFileName = QFileDialog::getSaveFileName( this, tr( "Save layer metadata as QMD" ),
+                             myLastUsedDir, tr( "QMD File" ) + " (*.qmd)" );
+  if ( myOutputFileName.isNull() ) //dialog canceled
+  {
+    return;
+  }
+
+  mMetadataWidget->acceptMetadata();
+
+  //ensure the user never omitted the extension from the file name
+  if ( !myOutputFileName.endsWith( QgsMapLayer::extensionPropertyType( QgsMapLayer::Metadata ), Qt::CaseInsensitive ) )
+  {
+    myOutputFileName += QgsMapLayer::extensionPropertyType( QgsMapLayer::Metadata );
+  }
+
+  bool defaultLoadedFlag = false;
+  QString message = mRasterLayer->saveNamedMetadata( myOutputFileName, defaultLoadedFlag );
+  if ( defaultLoadedFlag )
+    myQSettings.setValue( QStringLiteral( "style/lastStyleDir" ), QFileInfo( myOutputFileName ).absolutePath() );
+  else
+    QMessageBox::information( this, tr( "Saved Metadata" ), message );
+}
+
+void QgsRasterLayerProperties::saveDefaultMetadata()
+{
+  mMetadataWidget->acceptMetadata();
+
+  bool defaultSavedFlag = false;
+  QString errorMsg = mRasterLayer->saveDefaultMetadata( defaultSavedFlag );
+  if ( !defaultSavedFlag )
+  {
+    QMessageBox::warning( this, tr( "Default Metadata" ), errorMsg );
+  }
+}
+
+void QgsRasterLayerProperties::loadDefaultMetadata()
+{
+  bool defaultLoadedFlag = false;
+  QString myMessage = mRasterLayer->loadNamedMetadata( mRasterLayer->metadataUri(), defaultLoadedFlag );
+  //reset if the default metadata was loaded OK only
+  if ( defaultLoadedFlag )
+  {
+    mMetadataWidget->setMetadata( mRasterLayer->metadata() );
+  }
+  else
+  {
+    QMessageBox::information( this, tr( "Default Metadata" ), myMessage );
+  }
+}
+
 
 void QgsRasterLayerProperties::toggleBuildPyramidsButton()
 {
@@ -1799,20 +1986,20 @@ void QgsRasterLayerProperties::toggleBuildPyramidsButton()
   }
 }
 
-void QgsRasterLayerProperties::on_mResetColorRenderingBtn_clicked()
+void QgsRasterLayerProperties::mResetColorRenderingBtn_clicked()
 {
   mBlendModeComboBox->setBlendMode( QPainter::CompositionMode_SourceOver );
   mSliderBrightness->setValue( 0 );
   mSliderContrast->setValue( 0 );
   sliderSaturation->setValue( 0 );
-  comboGrayscale->setCurrentIndex(( int ) QgsHueSaturationFilter::GrayscaleOff );
+  comboGrayscale->setCurrentIndex( ( int ) QgsHueSaturationFilter::GrayscaleOff );
   mColorizeCheck->setChecked( false );
   sliderColorizeStrength->setValue( 100 );
 }
 
 bool QgsRasterLayerProperties::rasterIsMultiBandColor()
 {
-  return mRasterLayer && nullptr != dynamic_cast<QgsMultiBandColorRenderer*>( mRasterLayer->renderer() );
+  return mRasterLayer && nullptr != dynamic_cast<QgsMultiBandColorRenderer *>( mRasterLayer->renderer() );
 }
 
 void QgsRasterLayerProperties::onCancel()
@@ -1821,10 +2008,15 @@ void QgsRasterLayerProperties::onCancel()
   {
     // need to reset style to previous - style applied directly to the layer (not in apply())
     QString myMessage;
-    QDomDocument doc( "qgis" );
+    QDomDocument doc( QStringLiteral( "qgis" ) );
     int errorLine, errorColumn;
     doc.setContent( mOldStyle.xmlData(), false, &myMessage, &errorLine, &errorColumn );
     mRasterLayer->importNamedStyle( doc, myMessage );
     syncToLayer();
   }
+}
+
+void QgsRasterLayerProperties::showHelp()
+{
+  QgsHelp::openHelp( QStringLiteral( "working_with_raster/raster_properties.html" ) );
 }

@@ -21,9 +21,10 @@
 #include "qgisapp.h"
 #include "qgslogger.h"
 #include "qgsmapcanvas.h"
+#include "qgsmapdecoration.h"
 #include "qgsmaplayer.h"
 #include "qgsmaptopixel.h"
-#include "qgspoint.h"
+#include "qgspointxy.h"
 #include "qgsproject.h"
 #include "qgssymbollayerutils.h" //for pointOnLineWithDistance
 #include "qgsunittypes.h"
@@ -43,17 +44,9 @@
 //non qt includes
 #include <cmath>
 
-QgsDecorationItem::QgsDecorationItem( QObject* parent )
-    : QObject( parent )
-    , mEnabled( false )
-    , mPlacement( TopLeft )
-    , mMarginUnit( QgsUnitTypes::RenderMillimeters )
+QgsDecorationItem::QgsDecorationItem( QObject *parent )
+  : QObject( parent )
 {
-}
-
-QgsDecorationItem::~QgsDecorationItem()
-{
-
 }
 
 void QgsDecorationItem::update()
@@ -64,16 +57,16 @@ void QgsDecorationItem::update()
 
 void QgsDecorationItem::projectRead()
 {
-  mEnabled = QgsProject::instance()->readBoolEntry( mNameConfig, "/Enabled", false );
-  mPlacement = static_cast< Placement >( QgsProject::instance()->readNumEntry( mNameConfig, "/Placement", static_cast< int >( mPlacement ) ) );
-  mMarginUnit = QgsUnitTypes::decodeRenderUnit( QgsProject::instance()->readEntry( mNameConfig, "/MarginUnit", QgsUnitTypes::encodeUnit( mMarginUnit ) ) );
+  mEnabled = QgsProject::instance()->readBoolEntry( mNameConfig, QStringLiteral( "/Enabled" ), false );
+  mPlacement = static_cast< Placement >( QgsProject::instance()->readNumEntry( mNameConfig, QStringLiteral( "/Placement" ), static_cast< int >( mPlacement ) ) );
+  mMarginUnit = QgsUnitTypes::decodeRenderUnit( QgsProject::instance()->readEntry( mNameConfig, QStringLiteral( "/MarginUnit" ), QgsUnitTypes::encodeUnit( mMarginUnit ) ) );
 }
 
 void QgsDecorationItem::saveToProject()
 {
-  QgsProject::instance()->writeEntry( mNameConfig, "/Enabled", mEnabled );
-  QgsProject::instance()->writeEntry( mNameConfig, "/Placement", static_cast< int >( mPlacement ) );
-  QgsProject::instance()->writeEntry( mNameConfig, "/MarginUnit", QgsUnitTypes::encodeUnit( mMarginUnit ) );
+  QgsProject::instance()->writeEntry( mNameConfig, QStringLiteral( "/Enabled" ), mEnabled );
+  QgsProject::instance()->writeEntry( mNameConfig, QStringLiteral( "/Placement" ), static_cast< int >( mPlacement ) );
+  QgsProject::instance()->writeEntry( mNameConfig, QStringLiteral( "/MarginUnit" ), QgsUnitTypes::encodeUnit( mMarginUnit ) );
 }
 
 void QgsDecorationItem::setName( const char *name )

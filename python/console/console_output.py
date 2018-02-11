@@ -21,11 +21,11 @@ Some portions of code were taken from https://code.google.com/p/pydee/
 from builtins import range
 from builtins import object
 
-from qgis.PyQt.QtCore import Qt, QCoreApplication, QSettings
-from qgis.PyQt.QtGui import QColor, QFont, QKeySequence
+from qgis.PyQt.QtCore import Qt, QCoreApplication
+from qgis.PyQt.QtGui import QColor, QFont, QKeySequence, QFontDatabase
 from qgis.PyQt.QtWidgets import QGridLayout, QSpacerItem, QSizePolicy, QShortcut, QMenu, QApplication
 from qgis.PyQt.Qsci import QsciScintilla, QsciLexerPython
-from qgis.core import QgsApplication
+from qgis.core import Qgis, QgsApplication, QgsSettings
 from qgis.gui import QgsMessageBar
 import sys
 
@@ -39,6 +39,7 @@ class writeOut(object):
         self.sO = shellOut
         self.out = None
         self.style = style
+        self.fire_keyboard_interrupt = False
 
     def write(self, m):
         if self.style == "_traceback":
@@ -61,6 +62,10 @@ class writeOut(object):
 
         if self.style != "_traceback":
             QCoreApplication.processEvents()
+
+        if self.fire_keyboard_interrupt:
+            self.fire_keyboard_interrupt = False
+            raise KeyboardInterrupt
 
     def move_cursor_to_end(self):
         """Move cursor to end of text"""
@@ -85,7 +90,7 @@ class ShellOutputScintilla(QsciScintilla):
         self.parent = parent
         self.shell = self.parent.shell
 
-        self.settings = QSettings()
+        self.settings = QgsSettings()
 
         # Creates layout for message bar
         self.layout = QGridLayout(self)
@@ -109,10 +114,7 @@ class ShellOutputScintilla(QsciScintilla):
         self.setReadOnly(True)
 
         # Set the default font
-        font = QFont()
-        font.setFamily('Courier')
-        font.setFixedPitch(True)
-        font.setPointSize(10)
+        font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
         self.setFont(font)
         self.setMarginsFont(font)
         # Margin 0 is used for line numbers
@@ -136,7 +138,7 @@ class ShellOutputScintilla(QsciScintilla):
         self.runScut = QShortcut(QKeySequence(Qt.CTRL + Qt.Key_E), self)
         self.runScut.setContext(Qt.WidgetShortcut)
         self.runScut.activated.connect(self.enteredSelected)
-        # Reimplemeted copy action to prevent paste prompt (>>>,...) in command view
+        # Reimplemented copy action to prevent paste prompt (>>>,...) in command view
         self.copyShortcut = QShortcut(QKeySequence.Copy, self)
         self.copyShortcut.activated.connect(self.copy)
         self.selectAllShortcut = QShortcut(QKeySequence.SelectAll, self)
@@ -147,9 +149,9 @@ class ShellOutputScintilla(QsciScintilla):
                                              "Python Console \n"
                                              "Use iface to access QGIS API interface or Type help(iface) for more info")
 
-        ## some translation string for the console header ends without '\n'
-        ## and the first command in console will be appended at the header text.
-        ## The following code add a '\n' at the end of the string if not present.
+        # some translation string for the console header ends without '\n'
+        # and the first command in console will be appended at the header text.
+        # The following code add a '\n' at the end of the string if not present.
         if txtInit.endswith('\n'):
             self.setText(txtInit)
         else:
@@ -166,15 +168,14 @@ class ShellOutputScintilla(QsciScintilla):
     def setLexers(self):
         self.lexer = QsciLexerPython()
 
-        loadFont = self.settings.value("pythonConsole/fontfamilytext", "Monospace")
-        fontSize = self.settings.value("pythonConsole/fontsize", 10, type=int)
-        font = QFont(loadFont)
-        font.setFixedPitch(True)
-        font.setPointSize(fontSize)
-        font.setStyleHint(QFont.TypeWriter)
-        font.setStretch(QFont.SemiCondensed)
-        font.setLetterSpacing(QFont.PercentageSpacing, 87.0)
-        font.setBold(False)
+        font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
+
+        loadFont = self.settings.value("pythonConsole/fontfamilytext")
+        if loadFont:
+            font.setFamily(loadFont)
+        fontSize = self.settings.value("pythonConsole/fontsize", type=int)
+        if fontSize:
+            font.setPointSize(fontSize)
 
         self.lexer.setDefaultFont(font)
         self.lexer.setDefaultColor(QColor(self.settings.value("pythonConsole/defaultFontColor", QColor(Qt.black))))
@@ -207,7 +208,7 @@ class ShellOutputScintilla(QsciScintilla):
 
     def contextMenuEvent(self, e):
         menu = QMenu(self)
-        iconRun = QgsApplication.getThemeIcon("console/iconRunConsole.png")
+        iconRun = QgsApplication.getThemeIcon("console/mIconRunConsole.svg")
         iconClear = QgsApplication.getThemeIcon("console/iconClearConsole.png")
         iconHideTool = QgsApplication.getThemeIcon("console/iconHideToolConsole.png")
         iconSettings = QgsApplication.getThemeIcon("console/iconSettingsConsole.png")
@@ -292,4 +293,4 @@ class ShellOutputScintilla(QsciScintilla):
 
     def widgetMessageBar(self, iface, text):
         timeout = iface.messageTimeout()
-        self.infoBar.pushMessage(text, QgsMessageBar.INFO, timeout)
+        self.infoBar.pushMessage(text, Qgis.Info, timeout)

@@ -30,25 +30,28 @@
 #include <QFileInfo>
 #include <QTimer>
 
-QList< QPair<QString, QString> > QgsGPSDetector::availablePorts()
+QList< QPair<QString, QString> > QgsGpsDetector::availablePorts()
 {
   QList< QPair<QString, QString> > devs;
 
   // try local QtLocation first
 #if defined(HAVE_QT_MOBILITY_LOCATION ) || defined(QT_POSITIONING_LIB)
-  devs << QPair<QString, QString>( "internalGPS", tr( "internal GPS" ) );
+  devs << QPair<QString, QString>( QStringLiteral( "internalGPS" ), tr( "internal GPS" ) );
 #endif
 
   // try local gpsd first
-  devs << QPair<QString, QString>( "localhost:2947:", tr( "local gpsd" ) );
+  devs << QPair<QString, QString>( QStringLiteral( "localhost:2947:" ), tr( "local gpsd" ) );
 
 #ifdef Q_OS_LINUX
   // look for linux serial devices
-  Q_FOREACH ( const QString& linuxDev, QStringList() << "/dev/ttyS%1" << "/dev/ttyUSB%1" << "/dev/rfcomm%1" << "/dev/ttyACM%1" )
+  const QStringList devices { QStringLiteral( "/dev/ttyS%1" ),
+                              QStringLiteral( "/dev/ttyUSB%1" ),
+                              QStringLiteral( "/dev/rfcomm%1" ), QStringLiteral( "/dev/ttyACM%1" ) };
+  for ( const QString &linuxDev : devices )
   {
     for ( int i = 0; i < 10; ++i )
     {
-      if ( QFileInfo( linuxDev.arg( i ) ).exists() )
+      if ( QFileInfo::exists( linuxDev.arg( i ) ) )
       {
         devs << QPair<QString, QString>( linuxDev.arg( i ), linuxDev.arg( i ) );
       }
@@ -58,7 +61,7 @@ QList< QPair<QString, QString> > QgsGPSDetector::availablePorts()
 
 #ifdef Q_OS_FREEBSD
   // and freebsd devices (untested)
-  Q_FOREACH ( const QString& freebsdDev, QStringList() << "/dev/cuaa%1" << "/dev/ucom%1" )
+  Q_FOREACH ( const QString &freebsdDev, QStringList() << "/dev/cuaa%1" << "/dev/ucom%1" )
   {
     for ( int i = 0; i < 10; ++i )
     {
@@ -95,7 +98,7 @@ QList< QPair<QString, QString> > QgsGPSDetector::availablePorts()
   return devs;
 }
 
-QgsGPSDetector::QgsGPSDetector( const QString& portName )
+QgsGpsDetector::QgsGpsDetector( const QString &portName )
 {
   mConn = nullptr;
   mBaudList << BAUD4800 << BAUD9600 << BAUD38400 << BAUD57600 << BAUD115200;  //add 57600 for SXBlueII GPS unit
@@ -113,13 +116,13 @@ QgsGPSDetector::QgsGPSDetector( const QString& portName )
   mBaudIndex = -1;
 }
 
-QgsGPSDetector::~QgsGPSDetector()
+QgsGpsDetector::~QgsGpsDetector()
 {
   if ( mConn )
     delete mConn;
 }
 
-void QgsGPSDetector::advance()
+void QgsGpsDetector::advance()
 {
   if ( mConn )
   {
@@ -154,7 +157,7 @@ void QgsGPSDetector::advance()
 
       mConn = new QgsGpsdConnection( gpsParams[0], gpsParams[1].toShort(), gpsParams[2] );
     }
-    else if ( mPortList.at( mPortIndex ).first.contains( "internalGPS" ) )
+    else if ( mPortList.at( mPortIndex ).first.contains( QLatin1String( "internalGPS" ) ) )
     {
 #if defined(HAVE_QT_MOBILITY_LOCATION ) || defined(QT_POSITIONING_LIB)
       mConn = new QgsQtLocationConnection();
@@ -174,7 +177,7 @@ void QgsGPSDetector::advance()
 
       if ( serial->open( QIODevice::ReadOnly | QIODevice::Unbuffered ) )
       {
-        mConn = new QgsNMEAConnection( serial );
+        mConn = new QgsNmeaConnection( serial );
       }
       else
       {
@@ -183,14 +186,14 @@ void QgsGPSDetector::advance()
     }
   }
 
-  connect( mConn, SIGNAL( stateChanged( const QgsGPSInformation & ) ), this, SLOT( detected( const QgsGPSInformation & ) ) );
-  connect( mConn, SIGNAL( destroyed( QObject * ) ), this, SLOT( connDestroyed( QObject * ) ) );
+  connect( mConn, &QgsGpsConnection::stateChanged, this, static_cast < void ( QgsGpsDetector::* )( const QgsGpsInformation & ) >( &QgsGpsDetector::detected ) );
+  connect( mConn, &QObject::destroyed, this, &QgsGpsDetector::connDestroyed );
 
   // leave 2s to pickup a valid string
-  QTimer::singleShot( 2000, this, SLOT( advance() ) );
+  QTimer::singleShot( 2000, this, &QgsGpsDetector::advance );
 }
 
-void QgsGPSDetector::detected( const QgsGPSInformation& info )
+void QgsGpsDetector::detected( const QgsGpsInformation &info )
 {
   Q_UNUSED( info );
 
@@ -199,17 +202,17 @@ void QgsGPSDetector::detected( const QgsGPSInformation& info )
     // advance if connection was destroyed
     advance();
   }
-  else if ( mConn->status() == QgsGPSConnection::GPSDataReceived )
+  else if ( mConn->status() == QgsGpsConnection::GPSDataReceived )
   {
     // signal detection
-    QgsGPSConnection *conn = mConn;
+    QgsGpsConnection *conn = mConn;
     mConn = nullptr;
     emit detected( conn );
     deleteLater();
   }
 }
 
-void QgsGPSDetector::connDestroyed( QObject *obj )
+void QgsGpsDetector::connDestroyed( QObject *obj )
 {
   if ( obj == mConn )
   {

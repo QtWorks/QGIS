@@ -15,16 +15,18 @@
 #ifndef QGSFEATUREMODEL_H
 #define QGSFEATUREMODEL_H
 
+#include "qgis_gui.h"
 #include "qgsfeature.h" // QgsFeatureId
 #include <QModelIndex>
 
-/** \ingroup gui
+/**
+ * \ingroup gui
  * \class QgsFeatureModel
  */
-class QgsFeatureModel
+class GUI_EXPORT QgsFeatureModel
 {
   public:
-    virtual ~QgsFeatureModel() {}
+    virtual ~QgsFeatureModel() = default;
 
     virtual QModelIndex fidToIndex( QgsFeatureId fid ) = 0;
 };

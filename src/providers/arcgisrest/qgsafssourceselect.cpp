@@ -26,69 +26,82 @@
 #include <QMessageBox>
 
 
-QgsAfsSourceSelect::QgsAfsSourceSelect( QWidget* parent, Qt::WindowFlags fl, bool embeddedMode )
-    : QgsSourceSelectDialog( "ArcGisFeatureServer", QgsSourceSelectDialog::FeatureService, parent, fl )
+QgsAfsSourceSelect::QgsAfsSourceSelect( QWidget *parent, Qt::WindowFlags fl, QgsProviderRegistry::WidgetMode widgetMode )
+  : QgsArcGisServiceSourceSelect( QStringLiteral( "ArcGisFeatureServer" ), QgsArcGisServiceSourceSelect::FeatureService, parent, fl, widgetMode )
 {
-  if ( embeddedMode )
-  {
-    buttonBox->button( QDialogButtonBox::Close )->hide();
-  }
+  // import/export of connections not supported yet
+  btnLoad->hide();
+  btnSave->hide();
 }
 
 bool QgsAfsSourceSelect::connectToService( const QgsOwsConnection &connection )
 {
   QString errorTitle, errorMessage;
-  QVariantMap serviceInfoMap = QgsArcGisRestUtils::getServiceInfo( connection.uri().param( "url" ), errorTitle, errorMessage );
+  QVariantMap serviceInfoMap = QgsArcGisRestUtils::getServiceInfo( connection.uri().param( QStringLiteral( "url" ) ), errorTitle, errorMessage );
   if ( serviceInfoMap.isEmpty() )
   {
-    QMessageBox::warning( this, tr( "Error" ), tr( "Failed to retrieve service capabilities:\n%1: %2" ).arg( errorTitle ).arg( errorMessage ) );
+    QMessageBox::warning( this, tr( "Error" ), tr( "Failed to retrieve service capabilities:\n%1: %2" ).arg( errorTitle, errorMessage ) );
     return false;
   }
 
   QStringList layerErrors;
-  foreach ( const QVariant& layerInfo, serviceInfoMap["layers"].toList() )
+  foreach ( const QVariant &layerInfo, serviceInfoMap["layers"].toList() )
   {
-    QVariantMap layerInfoMap = layerInfo.toMap();
-    if ( !layerInfoMap["id"].isValid() )
+    const QVariantMap layerInfoMap = layerInfo.toMap();
+    if ( !layerInfoMap[QStringLiteral( "id" )].isValid() )
     {
+      continue;
+    }
+
+    if ( !layerInfoMap.value( QStringLiteral( "subLayerIds" ) ).toList().empty() )
+    {
+      // group layer - do not show as it is not possible to load
+      // TODO - turn model into a tree and show nested groups
       continue;
     }
 
     // Get layer info
-    QVariantMap layerData = QgsArcGisRestUtils::getLayerInfo( connection.uri().param( "url" ) + "/" + layerInfoMap["id"].toString(), errorTitle, errorMessage );
+    const QVariantMap layerData = QgsArcGisRestUtils::getLayerInfo( connection.uri().param( QStringLiteral( "url" ) ) + "/" + layerInfoMap[QStringLiteral( "id" )].toString(), errorTitle, errorMessage );
     if ( layerData.isEmpty() )
     {
-      layerErrors.append( tr( "Layer %1: %2 - %3" ).arg( layerInfoMap["id"].toString() ).arg( errorTitle ).arg( errorMessage ) );
+      layerErrors.append( tr( "Layer %1: %2 - %3" ).arg( layerInfoMap[QStringLiteral( "id" )].toString(), errorTitle, errorMessage ) );
       continue;
     }
     // insert the typenames, titles and abstracts into the tree view
-    QStandardItem* idItem = new QStandardItem( layerData["id"].toString() );
-    QStandardItem* nameItem = new QStandardItem( layerData["name"].toString() );
-    QStandardItem* abstractItem = new QStandardItem( layerData["description"].toString() );
-    abstractItem->setToolTip( layerData["description"].toString() );
-    QStandardItem* cachedItem = new QStandardItem();
-    QStandardItem* filterItem = new QStandardItem();
+    QStandardItem *idItem = new QStandardItem( layerData[QStringLiteral( "id" )].toString() );
+    bool ok = false;
+    int idInt = layerData[QStringLiteral( "id" )].toInt( &ok );
+    if ( ok )
+    {
+      // force display role to be int value, so that sorting works correctly
+      idItem->setData( idInt, Qt::DisplayRole );
+    }
+    QStandardItem *nameItem = new QStandardItem( layerData[QStringLiteral( "name" )].toString() );
+    QStandardItem *abstractItem = new QStandardItem( layerData[QStringLiteral( "description" )].toString() );
+    abstractItem->setToolTip( layerData[QStringLiteral( "description" )].toString() );
+    QStandardItem *cachedItem = new QStandardItem();
+    QStandardItem *filterItem = new QStandardItem();
     cachedItem->setCheckable( true );
     cachedItem->setCheckState( Qt::Checked );
 
-    QgsCoordinateReferenceSystem crs = QgsArcGisRestUtils::parseSpatialReference( serviceInfoMap["spatialReference"].toMap() );
+    QgsCoordinateReferenceSystem crs = QgsArcGisRestUtils::parseSpatialReference( serviceInfoMap[QStringLiteral( "spatialReference" )].toMap() );
     if ( !crs.isValid() )
     {
       // If not spatial reference, just use WGS84
-      crs.createFromString( "EPSG:4326" );
+      crs.createFromString( QStringLiteral( "EPSG:4326" ) );
     }
-    mAvailableCRS[layerData["name"].toString()] = QList<QString>()  << crs.authid();
+    mAvailableCRS[layerData[QStringLiteral( "name" )].toString()] = QList<QString>()  << crs.authid();
 
-    mModel->appendRow( QList<QStandardItem*>() << idItem << nameItem << abstractItem << cachedItem << filterItem );
+    mModel->appendRow( QList<QStandardItem *>() << idItem << nameItem << abstractItem << cachedItem << filterItem );
   }
   if ( !layerErrors.isEmpty() )
   {
-    QMessageBox::warning( this, tr( "Error" ), tr( "Failed to query some layers:\n%1" ).arg( layerErrors.join( "\n" ) ) );
+    QMessageBox::warning( this, tr( "Error" ), tr( "Failed to query some layers:\n%1" ).arg( layerErrors.join( QStringLiteral( "\n" ) ) ) );
   }
   return true;
 }
 
-void QgsAfsSourceSelect::buildQuery( const QgsOwsConnection &connection, const QModelIndex& index )
+void QgsAfsSourceSelect::buildQuery( const QgsOwsConnection &connection, const QModelIndex &index )
 {
   if ( !index.isValid() )
   {
@@ -99,9 +112,9 @@ void QgsAfsSourceSelect::buildQuery( const QgsOwsConnection &connection, const Q
 
   // Query available fields
   QgsDataSourceUri ds = connection.uri();
-  QString url = ds.param( "url" ) + "/" + id;
-  ds.removeParam( "url" );
-  ds.setParam( "url", url );
+  QString url = ds.param( QStringLiteral( "url" ) ) + "/" + id;
+  ds.removeParam( QStringLiteral( "url" ) );
+  ds.setParam( QStringLiteral( "url" ), url );
   QgsAfsProvider provider( ds.uri() );
   if ( !provider.isValid() )
   {
@@ -109,10 +122,10 @@ void QgsAfsSourceSelect::buildQuery( const QgsOwsConnection &connection, const Q
   }
 
   //show expression builder
-  QgsExpressionBuilderDialog d( 0, filterIndex.data().toString() );
+  QgsExpressionBuilderDialog d( nullptr, filterIndex.data().toString() );
 
   //add available attributes to expression builder
-  QgsExpressionBuilderWidget* w = d.expressionBuilder();
+  QgsExpressionBuilderWidget *w = d.expressionBuilder();
   w->loadFieldNames( provider.fields() );
 
   if ( d.exec() == QDialog::Accepted )
@@ -122,21 +135,27 @@ void QgsAfsSourceSelect::buildQuery( const QgsOwsConnection &connection, const Q
   }
 }
 
-QString QgsAfsSourceSelect::getLayerURI( const QgsOwsConnection& connection,
-    const QString& layerTitle, const QString& /*layerName*/,
-    const QString& crs,
-    const QString& filter,
-    const QgsRectangle& bBox ) const
+QString QgsAfsSourceSelect::getLayerURI( const QgsOwsConnection &connection,
+    const QString &layerTitle, const QString & /*layerName*/,
+    const QString &crs,
+    const QString &filter,
+    const QgsRectangle &bBox ) const
 {
   QgsDataSourceUri ds = connection.uri();
-  QString url = ds.param( "url" ) + "/" + layerTitle;
-  ds.removeParam( "url" );
-  ds.setParam( "url", url );
-  ds.setParam( "filter", filter );
-  ds.setParam( "crs", crs );
+  QString url = ds.param( QStringLiteral( "url" ) ) + "/" + layerTitle;
+  ds.removeParam( QStringLiteral( "url" ) );
+  ds.setParam( QStringLiteral( "url" ), url );
+  ds.setParam( QStringLiteral( "filter" ), filter );
+  ds.setParam( QStringLiteral( "crs" ), crs );
   if ( !bBox.isEmpty() )
   {
-    ds.setParam( "bbox", QString( "%1,%2,%3,%4" ).arg( bBox.xMinimum() ).arg( bBox.yMinimum() ).arg( bBox.xMaximum() ).arg( bBox.yMaximum() ) );
+    ds.setParam( QStringLiteral( "bbox" ), QStringLiteral( "%1,%2,%3,%4" ).arg( bBox.xMinimum() ).arg( bBox.yMinimum() ).arg( bBox.xMaximum() ).arg( bBox.yMaximum() ) );
   }
   return ds.uri();
+}
+
+
+void QgsAfsSourceSelect::addServiceLayer( QString uri, QString typeName )
+{
+  emit addVectorLayer( uri, typeName );
 }

@@ -22,10 +22,6 @@ email                : brush.tyler@gmail.com
 from builtins import str
 from builtins import range
 
-import sys
-if sys.version_info < (3,):
-    memoryview = buffer
-
 from qgis.PyQt.QtCore import Qt, QTime, QRegExp, QAbstractTableModel
 from qgis.PyQt.QtGui import QFont, QStandardItemModel, QStandardItem
 from qgis.PyQt.QtWidgets import QApplication
@@ -89,7 +85,7 @@ class BaseTableModel(QAbstractTableModel):
             # too much data to display, elide the string
             val = val[:300]
         try:
-            return str(val)  # convert to unicode
+            return str(val)  # convert to Unicode
         except UnicodeDecodeError:
             return str(val, 'utf-8', 'replace')  # convert from utf8 and replace errors (if any)
 

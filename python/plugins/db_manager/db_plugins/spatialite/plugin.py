@@ -24,10 +24,10 @@ from builtins import str
 # this will disable the dbplugin if the connector raise an ImportError
 from .connector import SpatiaLiteDBConnector
 
-from qgis.PyQt.QtCore import Qt, QSettings, QFileInfo
+from qgis.PyQt.QtCore import Qt, QFileInfo
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QApplication, QAction, QFileDialog
-from qgis.core import QgsDataSourceUri
+from qgis.core import Qgis, QgsDataSourceUri, QgsSettings
 from qgis.gui import QgsMessageBar
 
 from ..plugin import DBPlugin, Database, Table, VectorTable, RasterTable, TableField, TableIndex, TableTrigger, \
@@ -52,7 +52,7 @@ class SpatiaLiteDBPlugin(DBPlugin):
 
     @classmethod
     def typeNameString(self):
-        return 'SpatiaLite/Geopackage'
+        return 'SpatiaLite'
 
     @classmethod
     def providerName(self):
@@ -67,11 +67,11 @@ class SpatiaLiteDBPlugin(DBPlugin):
 
     def connect(self, parent=None):
         conn_name = self.connectionName()
-        settings = QSettings()
+        settings = QgsSettings()
         settings.beginGroup(u"/%s/%s" % (self.connectionSettingsKey(), conn_name))
 
         if not settings.contains("sqlitepath"):  # non-existent entry?
-            raise InvalidDataException(u'there is no defined database connection "%s".' % conn_name)
+            raise InvalidDataException(self.tr(u'There is no defined database connection "{0}".').format(conn_name))
 
         database = settings.value("sqlitepath")
 
@@ -81,7 +81,7 @@ class SpatiaLiteDBPlugin(DBPlugin):
 
     @classmethod
     def addConnection(self, conn_name, uri):
-        settings = QSettings()
+        settings = QgsSettings()
         settings.beginGroup(u"/%s/%s" % (self.connectionSettingsKey(), conn_name))
         settings.setValue("sqlitepath", uri.database())
         return True
@@ -90,7 +90,7 @@ class SpatiaLiteDBPlugin(DBPlugin):
     def addConnectionActionSlot(self, item, action, parent, index):
         QApplication.restoreOverrideCursor()
         try:
-            filename, selected_filter = QFileDialog.getOpenFileName(parent, "Choose Sqlite/Spatialite/Geopackage file")
+            filename, selected_filter = QFileDialog.getOpenFileName(parent, "Choose SQLite/SpatiaLite file")
             if not filename:
                 return
         finally:
@@ -141,7 +141,7 @@ class SLDatabase(Database):
         try:
             if not isinstance(item, (DBPlugin, Table)) or item.database() is None:
                 parent.infoBar.pushMessage(self.tr("No database selected or you are not connected to it."),
-                                           QgsMessageBar.INFO, parent.iface.messageTimeout())
+                                           Qgis.Info, parent.iface.messageTimeout())
                 return
         finally:
             QApplication.setOverrideCursor(Qt.WaitCursor)
@@ -184,21 +184,13 @@ class SLTable(Table):
         return ogrUri
 
     def mimeUri(self):
-        if self.database().connector.isGpkg():
-            # QGIS has no provider to load Geopackage vectors, let's use OGR
-            return u"vector:ogr:%s:%s" % (self.name, self.ogrUri())
         return Table.mimeUri(self)
 
     def toMapLayer(self):
         from qgis.core import QgsVectorLayer
 
-        if self.database().connector.isGpkg():
-            # QGIS has no provider to load Geopackage vectors, let's use OGR
-            provider = "ogr"
-            uri = self.ogrUri()
-        else:
-            provider = self.database().dbplugin().providerName()
-            uri = self.uri().uri()
+        provider = self.database().dbplugin().providerName()
+        uri = self.uri().uri()
 
         return QgsVectorLayer(uri, self.name, provider)
 
@@ -283,12 +275,8 @@ class SLRasterTable(SLTable, RasterTable):
     def toMapLayer(self):
         from qgis.core import QgsRasterLayer, QgsContrastEnhancement
 
-        if self.database().connector.isGpkg():
-            # QGIS has no provider to load Geopackage rasters, let's use GDAL
-            uri = self.ogrUri()
-        else:
-            # QGIS has no provider to load Rasterlite rasters, let's use GDAL
-            uri = self.rasterliteGdalUri()
+        # QGIS has no provider to load Rasterlite rasters, let's use GDAL
+        uri = self.rasterliteGdalUri()
 
         rl = QgsRasterLayer(uri, self.name)
         if rl.isValid():

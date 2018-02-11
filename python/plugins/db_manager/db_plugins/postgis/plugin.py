@@ -26,9 +26,10 @@ from builtins import range
 # this will disable the dbplugin if the connector raise an ImportError
 from .connector import PostGisDBConnector
 
-from qgis.PyQt.QtCore import QSettings, Qt, QRegExp
+from qgis.PyQt.QtCore import Qt, QRegExp
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QApplication, QMessageBox
+from qgis.core import Qgis, QgsSettings
 from qgis.gui import QgsMessageBar
 
 from ..plugin import ConnectionError, InvalidDataException, DBPlugin, Database, Schema, Table, VectorTable, RasterTable, \
@@ -70,11 +71,11 @@ class PostGisDBPlugin(DBPlugin):
 
     def connect(self, parent=None):
         conn_name = self.connectionName()
-        settings = QSettings()
+        settings = QgsSettings()
         settings.beginGroup(u"/%s/%s" % (self.connectionSettingsKey(), conn_name))
 
         if not settings.contains("database"):  # non-existent entry?
-            raise InvalidDataException(self.tr('There is no defined database connection "%s".') % conn_name)
+            raise InvalidDataException(self.tr('There is no defined database connection "{0}".').format(conn_name))
 
         from qgis.core import QgsDataSourceUri
 
@@ -87,6 +88,9 @@ class PostGisDBPlugin(DBPlugin):
         sslmode = settings.value("sslmode", QgsDataSourceUri.SslPrefer, type=int)
 
         settings.endGroup()
+
+        if hasattr(authcfg, 'isNull') and authcfg.isNull():
+            authcfg = ''
 
         if service:
             uri.setConnection(service, database, username, password, sslmode, authcfg)
@@ -148,7 +152,7 @@ class PGDatabase(Database):
         QApplication.restoreOverrideCursor()
         try:
             if not isinstance(item, Table) or item.isView:
-                parent.infoBar.pushMessage(self.tr("Select a table for vacuum analyze."), QgsMessageBar.INFO,
+                parent.infoBar.pushMessage(self.tr("Select a table for vacuum analyze."), Qgis.Info,
                                            parent.iface.messageTimeout())
                 return
         finally:
@@ -160,13 +164,16 @@ class PGDatabase(Database):
         QApplication.restoreOverrideCursor()
         try:
             if not isinstance(item, PGTable) or item._relationType != 'm':
-                parent.infoBar.pushMessage(self.tr("Select a materialized view for refresh."), QgsMessageBar.INFO,
+                parent.infoBar.pushMessage(self.tr("Select a materialized view for refresh."), Qgis.Info,
                                            parent.iface.messageTimeout())
                 return
         finally:
             QApplication.setOverrideCursor(Qt.WaitCursor)
 
         item.runRefreshMaterializedView()
+
+    def hasLowercaseFieldNamesOption(self):
+        return True
 
 
 class PGSchema(Schema):
@@ -209,7 +216,7 @@ class PGTable(Table):
             rule_name = parts[1]
             rule_action = parts[2]
 
-            msg = u"Do you want to %s rule %s?" % (rule_action, rule_name)
+            msg = self.tr(u"Do you want to {0} rule {1}?").format(rule_action, rule_name)
 
             QApplication.restoreOverrideCursor()
 
@@ -303,12 +310,22 @@ class PGRasterTable(PGTable, RasterTable):
     def gdalUri(self, uri=None):
         if not uri:
             uri = self.database().uri()
+        service = (u'service=%s' % uri.service()) if uri.service() else ''
         schema = (u'schema=%s' % self.schemaName()) if self.schemaName() else ''
         dbname = (u'dbname=%s' % uri.database()) if uri.database() else ''
         host = (u'host=%s' % uri.host()) if uri.host() else ''
         user = (u'user=%s' % uri.username()) if uri.username() else ''
         passw = (u'password=%s' % uri.password()) if uri.password() else ''
         port = (u'port=%s' % uri.port()) if uri.port() else ''
+
+        if not dbname:
+            # GDAL postgisraster driver *requires* ad dbname
+            # See: https://trac.osgeo.org/gdal/ticket/6910
+            # TODO: cache this ?
+            connector = self.database().connector
+            r = connector._execute(None, "SELECT current_database()")
+            dbname = (u'dbname=%s' % connector._fetchone(r)[0])
+            connector._close_cursor(r)
 
         # Find first raster field
         col = ''
@@ -317,8 +334,8 @@ class PGRasterTable(PGTable, RasterTable):
                 col = u'column=%s' % fld.name
                 break
 
-        gdalUri = u'PG: %s %s %s %s %s mode=2 %s %s table=%s' % \
-                  (dbname, host, user, passw, port, schema, col, self.name)
+        gdalUri = u'PG: %s %s %s %s %s %s mode=2 %s %s table=%s' % \
+                  (service, dbname, host, user, passw, port, schema, col, self.name)
 
         return gdalUri
 

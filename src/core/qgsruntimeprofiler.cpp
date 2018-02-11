@@ -1,21 +1,6 @@
 #include "qgsruntimeprofiler.h"
 #include "qgslogger.h"
 
-
-QgsRuntimeProfiler* QgsRuntimeProfiler::mInstance = nullptr;
-
-QgsRuntimeProfiler* QgsRuntimeProfiler::instance()
-{
-  if ( !mInstance )
-    mInstance = new QgsRuntimeProfiler();
-  return mInstance;
-}
-
-QgsRuntimeProfiler::QgsRuntimeProfiler()
-{
-
-}
-
 void QgsRuntimeProfiler::beginGroup( const QString &name )
 {
   mGroupStack.push( name );
@@ -30,7 +15,7 @@ void QgsRuntimeProfiler::endGroup()
 {
   if ( mGroupStack.isEmpty() )
   {
-    qWarning( "QSettings::endGroup: No matching beginGroup()" );
+    qWarning( "QgsSettings::endGroup: No matching beginGroup()" );
     return;
   }
 
@@ -50,10 +35,9 @@ void QgsRuntimeProfiler::end()
 {
   QString name = mCurrentName;
   name.prepend( mGroupPrefix );
-  double timing =  mProfileTime.elapsed() / 1000.0;
+  double timing = mProfileTime.elapsed() / 1000.0;
   mProfileTimes.append( QPair<QString, double>( name, timing ) );
-  QString message =  QString( "PROFILE: %1 - %2" ).arg( name ).arg( timing );
-  QgsDebugMsg( message );
+  QgsDebugMsg( QStringLiteral( "PROFILE: %1 - %2" ).arg( name ).arg( timing ) );
 }
 
 void QgsRuntimeProfiler::clear()

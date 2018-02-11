@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Create offline project</string>
+   <string>Create Offline Project</string>
   </property>
   <property name="windowIcon">
    <iconset>
@@ -82,7 +82,7 @@
         </spacer>
        </item>
        <item>
-        <widget class="QPushButton" name="mUnselectAllButton">
+        <widget class="QPushButton" name="mDeselectAllButton">
          <property name="text">
           <string>Deselect all</string>
          </property>
@@ -107,7 +107,7 @@
         <enum>Qt::Horizontal</enum>
        </property>
        <property name="standardButtons">
-        <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+        <set>QDialogButtonBox::Cancel|QDialogButtonBox::Help|QDialogButtonBox::Ok</set>
        </property>
       </widget>
      </item>

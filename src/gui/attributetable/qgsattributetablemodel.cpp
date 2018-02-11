@@ -24,50 +24,53 @@
 #include "qgsfeatureiterator.h"
 #include "qgsconditionalstyle.h"
 #include "qgsfields.h"
+#include "qgsfieldformatter.h"
 #include "qgslogger.h"
 #include "qgsmapcanvas.h"
 #include "qgsmaplayeractionregistry.h"
-#include "qgsmaplayerregistry.h"
 #include "qgsrenderer.h"
 #include "qgsvectorlayer.h"
 #include "qgsvectordataprovider.h"
 #include "qgssymbollayerutils.h"
+#include "qgsfieldformatterregistry.h"
+#include "qgsgui.h"
+#include "qgsexpressionnodeimpl.h"
+#include "qgsvectorlayerjoininfo.h"
+#include "qgsvectorlayerjoinbuffer.h"
+#include "qgsfieldmodel.h"
 
 #include <QVariant>
 
 #include <limits>
 
 QgsAttributeTableModel::QgsAttributeTableModel( QgsVectorLayerCache *layerCache, QObject *parent )
-    : QAbstractTableModel( parent )
-    , mLayerCache( layerCache )
-    , mFieldCount( 0 )
-    , mSortCacheExpression( "" )
-    , mSortFieldIndex( -1 )
-    , mExtraColumns( 0 )
+  : QAbstractTableModel( parent )
+  , mLayerCache( layerCache )
+  , mFieldCount( 0 )
+  , mSortFieldIndex( -1 )
+  , mExtraColumns( 0 )
 {
-  mExpressionContext << QgsExpressionContextUtils::globalScope()
-  << QgsExpressionContextUtils::projectScope()
-  << QgsExpressionContextUtils::layerScope( layerCache->layer() );
+  mExpressionContext.appendScopes( QgsExpressionContextUtils::globalProjectLayerScopes( layerCache->layer() ) );
 
   if ( layerCache->layer()->geometryType() == QgsWkbTypes::NullGeometry )
   {
     mFeatureRequest.setFlags( QgsFeatureRequest::NoGeometry );
   }
 
-  mFeat.setFeatureId( std::numeric_limits<int>::min() );
+  mFeat.setId( std::numeric_limits<int>::min() );
 
-  if ( !layer()->hasGeometryType() )
+  if ( !layer()->isSpatial() )
     mFeatureRequest.setFlags( QgsFeatureRequest::NoGeometry );
 
   loadAttributes();
 
-  connect( mLayerCache, SIGNAL( attributeValueChanged( QgsFeatureId, int, const QVariant& ) ), this, SLOT( attributeValueChanged( QgsFeatureId, int, const QVariant& ) ) );
-  connect( layer(), SIGNAL( featuresDeleted( QgsFeatureIds ) ), this, SLOT( featuresDeleted( QgsFeatureIds ) ) );
-  connect( layer(), SIGNAL( attributeDeleted( int ) ), this, SLOT( attributeDeleted( int ) ) );
-  connect( layer(), SIGNAL( updatedFields() ), this, SLOT( updatedFields() ) );
-  connect( layer(), SIGNAL( editCommandEnded() ), this, SLOT( editCommandEnded() ) );
-  connect( mLayerCache, SIGNAL( featureAdded( QgsFeatureId ) ), this, SLOT( featureAdded( QgsFeatureId ) ) );
-  connect( mLayerCache, SIGNAL( cachedLayerDeleted() ), this, SLOT( layerDeleted() ) );
+  connect( mLayerCache, &QgsVectorLayerCache::attributeValueChanged, this, &QgsAttributeTableModel::attributeValueChanged );
+  connect( layer(), &QgsVectorLayer::featuresDeleted, this, &QgsAttributeTableModel::featuresDeleted );
+  connect( layer(), &QgsVectorLayer::attributeDeleted, this, &QgsAttributeTableModel::attributeDeleted );
+  connect( layer(), &QgsVectorLayer::updatedFields, this, &QgsAttributeTableModel::updatedFields );
+  connect( layer(), &QgsVectorLayer::editCommandEnded, this, &QgsAttributeTableModel::editCommandEnded );
+  connect( mLayerCache, &QgsVectorLayerCache::featureAdded, this, [ = ]( QgsFeatureId id ) { featureAdded( id ); } );
+  connect( mLayerCache, &QgsVectorLayerCache::cachedLayerDeleted, this, &QgsAttributeTableModel::layerDeleted );
 }
 
 bool QgsAttributeTableModel::loadFeatureAtId( QgsFeatureId fid ) const
@@ -93,7 +96,7 @@ void QgsAttributeTableModel::setExtraColumns( int extraColumns )
   loadAttributes();
 }
 
-void QgsAttributeTableModel::featuresDeleted( const QgsFeatureIds& fids )
+void QgsAttributeTableModel::featuresDeleted( const QgsFeatureIds &fids )
 {
   QList<int> rows;
 
@@ -106,7 +109,7 @@ void QgsAttributeTableModel::featuresDeleted( const QgsFeatureIds& fids )
       rows << row;
   }
 
-  qSort( rows );
+  std::sort( rows.begin(), rows.end() );
 
   int lastRow = -1;
   int beginRow = -1;
@@ -151,10 +154,12 @@ void QgsAttributeTableModel::featuresDeleted( const QgsFeatureIds& fids )
 
 bool QgsAttributeTableModel::removeRows( int row, int count, const QModelIndex &parent )
 {
+
   if ( row < 0 || count < 1 )
     return false;
 
   beginRemoveRows( parent, row, row + count - 1 );
+
 #ifdef QGISDEBUG
   if ( 3 <= QgsLogger::debugLevel() )
     QgsDebugMsgLevel( QString( "remove %2 rows at %1 (rows %3, ids %4)" ).arg( row ).arg( count ).arg( mRowIdMap.size() ).arg( mIdRowMap.size() ), 3 );
@@ -174,7 +179,7 @@ bool QgsAttributeTableModel::removeRows( int row, int count, const QModelIndex &
   {
     QgsFeatureId id = mRowIdMap[i];
     mIdRowMap[id] -= count;
-    mRowIdMap[i-count] = id;
+    mRowIdMap[i - count] = id;
     mRowIdMap.remove( i );
   }
 
@@ -199,7 +204,7 @@ bool QgsAttributeTableModel::removeRows( int row, int count, const QModelIndex &
   return true;
 }
 
-void QgsAttributeTableModel::featureAdded( QgsFeatureId fid )
+void QgsAttributeTableModel::featureAdded( QgsFeatureId fid, bool resettingModel )
 {
   QgsDebugMsgLevel( QString( "(%2) fid: %1" ).arg( fid ).arg( mFeatureRequest.filterType() ), 4 );
   bool featOk = true;
@@ -209,29 +214,32 @@ void QgsAttributeTableModel::featureAdded( QgsFeatureId fid )
 
   if ( featOk && mFeatureRequest.acceptFeature( mFeat ) )
   {
-    if ( mSortFieldIndex == -1 )
+    if ( mSortFieldIndex >= 0 )
+    {
+      QgsFieldFormatter *fieldFormatter = mFieldFormatters.at( mSortFieldIndex );
+      const QVariant &widgetCache = mAttributeWidgetCaches.at( mSortFieldIndex );
+      const QVariantMap &widgetConfig = mWidgetConfigs.at( mSortFieldIndex );
+      QVariant sortValue = fieldFormatter->representValue( layer(), mSortFieldIndex, widgetConfig, widgetCache, mFeat.attribute( mSortFieldIndex ) );
+      mSortCache.insert( mFeat.id(), sortValue );
+    }
+    else if ( mSortCacheExpression.isValid() )
     {
       mExpressionContext.setFeature( mFeat );
       mSortCache[mFeat.id()] = mSortCacheExpression.evaluate( &mExpressionContext );
     }
-    else
+
+    // Skip if the fid is already in the map (do not add twice)!
+    if ( ! mIdRowMap.contains( fid ) )
     {
-      QgsEditorWidgetFactory* widgetFactory = mWidgetFactories.at( mSortFieldIndex );
-      const QVariant& widgetCache = mAttributeWidgetCaches.at( mSortFieldIndex );
-      const QgsEditorWidgetConfig& widgetConfig = mWidgetConfigs.at( mSortFieldIndex );
-      QVariant sortValue = widgetFactory->representValue( layer(), mSortFieldIndex, widgetConfig, widgetCache, mFeat.attribute( mSortFieldIndex ) );
-      mSortCache.insert( mFeat.id(), sortValue );
+      int n = mRowIdMap.size();
+      if ( !resettingModel )
+        beginInsertRows( QModelIndex(), n, n );
+      mIdRowMap.insert( fid, n );
+      mRowIdMap.insert( n, fid );
+      if ( !resettingModel )
+        endInsertRows();
+      reload( index( rowCount() - 1, 0 ), index( rowCount() - 1, columnCount() ) );
     }
-
-    int n = mRowIdMap.size();
-    beginInsertRows( QModelIndex(), n, n );
-
-    mIdRowMap.insert( fid, n );
-    mRowIdMap.insert( n, fid );
-
-    endInsertRows();
-
-    reload( index( rowCount() - 1, 0 ), index( rowCount() - 1, columnCount() ) );
   }
 }
 
@@ -243,26 +251,36 @@ void QgsAttributeTableModel::updatedFields()
 
 void QgsAttributeTableModel::editCommandEnded()
 {
-  reload( createIndex( mChangedCellBounds.top(), mChangedCellBounds.left() ),
-          createIndex( mChangedCellBounds.bottom(), mChangedCellBounds.right() ) );
-
+  // do not do reload(...) due would trigger (dataChanged) row sort
+  // giving issue: https://issues.qgis.org/issues/15976
   mChangedCellBounds = QRect();
 }
 
 void QgsAttributeTableModel::attributeDeleted( int idx )
 {
   if ( mSortCacheAttributes.contains( idx ) )
-    prefetchSortData( "" );
+    prefetchSortData( QString() );
 }
 
 void QgsAttributeTableModel::layerDeleted()
 {
+  mLayerCache = nullptr;
   removeRows( 0, rowCount() );
 
   mAttributeWidgetCaches.clear();
   mAttributes.clear();
   mWidgetFactories.clear();
   mWidgetConfigs.clear();
+  mFieldFormatters.clear();
+}
+
+void QgsAttributeTableModel::fieldFormatterRemoved( QgsFieldFormatter *fieldFormatter )
+{
+  for ( int i = 0; i < mFieldFormatters.size(); ++i )
+  {
+    if ( mFieldFormatters.at( i ) == fieldFormatter )
+      mFieldFormatters[i] = QgsApplication::fieldFormatterRegistry()->fallbackFieldFormatter();
+  }
 }
 
 void QgsAttributeTableModel::attributeValueChanged( QgsFeatureId fid, int idx, const QVariant &value )
@@ -273,23 +291,26 @@ void QgsAttributeTableModel::attributeValueChanged( QgsFeatureId fid, int idx, c
   {
     if ( mSortFieldIndex == -1 )
     {
-      loadFeatureAtId( fid );
-      mExpressionContext.setFeature( mFeat );
-      mSortCache[fid] = mSortCacheExpression.evaluate( &mExpressionContext );
+      if ( loadFeatureAtId( fid ) )
+      {
+        mExpressionContext.setFeature( mFeat );
+        mSortCache[fid] = mSortCacheExpression.evaluate( &mExpressionContext );
+      }
     }
     else
     {
-      QgsEditorWidgetFactory* widgetFactory = mWidgetFactories.at( mSortFieldIndex );
-      const QVariant& widgetCache = mAttributeWidgetCaches.at( mSortFieldIndex );
-      const QgsEditorWidgetConfig& widgetConfig = mWidgetConfigs.at( mSortFieldIndex );
-      QVariant sortValue = widgetFactory->representValue( layer(), mSortFieldIndex, widgetConfig, widgetCache, value );
+      QgsFieldFormatter *fieldFormatter = mFieldFormatters.at( mSortFieldIndex );
+      const QVariant &widgetCache = mAttributeWidgetCaches.at( mSortFieldIndex );
+      const QVariantMap &widgetConfig = mWidgetConfigs.at( mSortFieldIndex );
+      QVariant sortValue = fieldFormatter->representValue( layer(), mSortFieldIndex, widgetConfig, widgetCache, value );
       mSortCache.insert( fid, sortValue );
     }
   }
   // No filter request: skip all possibly heavy checks
   if ( mFeatureRequest.filterType() == QgsFeatureRequest::FilterNone )
   {
-    setData( index( idToRow( fid ), fieldCol( idx ) ), value, Qt::EditRole );
+    if ( loadFeatureAtId( fid ) )
+      setData( index( idToRow( fid ), fieldCol( idx ) ), value, Qt::EditRole );
   }
   else
   {
@@ -331,7 +352,7 @@ void QgsAttributeTableModel::loadAttributes()
   bool ins = false, rm = false;
 
   QgsAttributeList attributes;
-  const QgsFields& fields = layer()->fields();
+  const QgsFields &fields = layer()->fields();
 
   mWidgetFactories.clear();
   mAttributeWidgetCaches.clear();
@@ -339,13 +360,16 @@ void QgsAttributeTableModel::loadAttributes()
 
   for ( int idx = 0; idx < fields.count(); ++idx )
   {
-    const QgsEditorWidgetSetup setup = QgsEditorWidgetRegistry::instance()->findBest( layer(), fields[idx].name() );
-    QgsEditorWidgetFactory* widgetFactory = QgsEditorWidgetRegistry::instance()->factory( setup.type() );
+    const QgsEditorWidgetSetup setup = QgsGui::editorWidgetRegistry()->findBest( layer(), fields[idx].name() );
+    QgsEditorWidgetFactory *widgetFactory = QgsGui::editorWidgetRegistry()->factory( setup.type() );
+    QgsFieldFormatter *fieldFormatter = QgsApplication::fieldFormatterRegistry()->fieldFormatter( setup.type() );
+
     if ( widgetFactory )
     {
       mWidgetFactories.append( widgetFactory );
       mWidgetConfigs.append( setup.config() );
-      mAttributeWidgetCaches.append( widgetFactory->createCache( layer(), idx, setup.config() ) );
+      mAttributeWidgetCaches.append( fieldFormatter->createCache( layer(), idx, setup.config() ) );
+      mFieldFormatters.append( fieldFormatter );
 
       attributes << idx;
     }
@@ -413,15 +437,15 @@ void QgsAttributeTableModel::loadLayer()
 
       t.restart();
     }
-    featureAdded( mFeat.id() );
+    featureAdded( mFeat.id(), true );
   }
 
   emit finished();
 
-  connect( mLayerCache, SIGNAL( invalidated() ), this, SLOT( loadLayer() ), Qt::UniqueConnection );
-
+  connect( mLayerCache, &QgsVectorLayerCache::invalidated, this, &QgsAttributeTableModel::loadLayer, Qt::UniqueConnection );
   endResetModel();
 }
+
 
 void QgsAttributeTableModel::fieldConditionalStyleChanged( const QString &fieldName )
 {
@@ -460,6 +484,8 @@ void QgsAttributeTableModel::swapRows( QgsFeatureId a, QgsFeatureId b )
   mIdRowMap.remove( b );
   mIdRowMap.insert( a, rowB );
   mIdRowMap.insert( b, rowA );
+  Q_ASSERT( mRowIdMap.size() == mIdRowMap.size() );
+
 
   //emit layoutChanged();
 }
@@ -526,7 +552,7 @@ int QgsAttributeTableModel::rowCount( const QModelIndex &parent ) const
 int QgsAttributeTableModel::columnCount( const QModelIndex &parent ) const
 {
   Q_UNUSED( parent );
-  return qMax( 1, mFieldCount + mExtraColumns );  // if there are zero columns all model indices will be considered invalid
+  return std::max( 1, mFieldCount + mExtraColumns );  // if there are zero columns all model indices will be considered invalid
 }
 
 QVariant QgsAttributeTableModel::headerData( int section, Qt::Orientation orientation, int role ) const
@@ -559,8 +585,8 @@ QVariant QgsAttributeTableModel::headerData( int section, Qt::Orientation orient
     }
     else
     {
-      QgsField field = layer()->fields().at( mAttributes.at( section ) );
-      return field.name();
+      const QgsField field = layer()->fields().at( mAttributes.at( section ) );
+      return QgsFieldModel::fieldToolTip( field );
     }
   }
   else
@@ -571,9 +597,10 @@ QVariant QgsAttributeTableModel::headerData( int section, Qt::Orientation orient
 
 QVariant QgsAttributeTableModel::data( const QModelIndex &index, int role ) const
 {
-  if ( !index.isValid() ||
+  if ( !index.isValid() || !layer() ||
        ( role != Qt::TextAlignmentRole
          && role != Qt::DisplayRole
+         && role != Qt::ToolTipRole
          && role != Qt::EditRole
          && role != SortRole
          && role != FeatureIdRole
@@ -608,7 +635,7 @@ QVariant QgsAttributeTableModel::data( const QModelIndex &index, int role ) cons
 
   if ( role == Qt::TextAlignmentRole )
   {
-    return mWidgetFactories.at( index.column() )->alignmentFlag( layer(), fieldId, mWidgetConfigs.at( index.column() ) );
+    return QVariant( mFieldFormatters.at( index.column() )->alignmentFlag( layer(), fieldId, mWidgetConfigs.at( index.column() ) ) | Qt::AlignVCenter );
   }
 
   if ( mFeat.id() != rowId || !mFeat.isValid() )
@@ -625,7 +652,8 @@ QVariant QgsAttributeTableModel::data( const QModelIndex &index, int role ) cons
   switch ( role )
   {
     case Qt::DisplayRole:
-      return mWidgetFactories.at( index.column() )->representValue( layer(), fieldId, mWidgetConfigs.at( index.column() ),
+    case Qt::ToolTipRole:
+      return mFieldFormatters.at( index.column() )->representValue( layer(), fieldId, mWidgetConfigs.at( index.column() ),
              mAttributeWidgetCaches.at( index.column() ), val );
 
     case Qt::EditRole:
@@ -646,12 +674,11 @@ QVariant QgsAttributeTableModel::data( const QModelIndex &index, int role ) cons
       {
         styles = QgsConditionalStyle::matchingConditionalStyles( layer()->conditionalStyles()->rowStyles(), QVariant(),  mExpressionContext );
         mRowStylesMap.insert( index.row(), styles );
-
       }
 
       QgsConditionalStyle rowstyle = QgsConditionalStyle::compressStyles( styles );
       styles = layer()->conditionalStyles()->fieldStyles( field.name() );
-      styles = QgsConditionalStyle::matchingConditionalStyles( styles , val,  mExpressionContext );
+      styles = QgsConditionalStyle::matchingConditionalStyles( styles, val,  mExpressionContext );
       styles.insert( 0, rowstyle );
       QgsConditionalStyle style = QgsConditionalStyle::compressStyles( styles );
 
@@ -716,34 +743,52 @@ Qt::ItemFlags QgsAttributeTableModel::flags( const QModelIndex &index ) const
   if ( !index.isValid() )
     return Qt::ItemIsEnabled;
 
-  if ( index.column() >= mFieldCount )
+  if ( index.column() >= mFieldCount || !layer() )
     return Qt::NoItemFlags;
 
-  Qt::ItemFlags flags = QAbstractItemModel::flags( index );
+  Qt::ItemFlags flags = QAbstractTableModel::flags( index );
 
-  if ( layer()->isEditable() &&
-       !layer()->editFormConfig().readOnly( mAttributes[index.column()] ) &&
-       (( layer()->dataProvider() && layer()->dataProvider()->capabilities() & QgsVectorDataProvider::ChangeAttributeValues ) ||
-        FID_IS_NEW( rowToId( index.row() ) ) ) )
+  bool editable = false;
+  const int fieldIndex = mAttributes[index.column()];
+  const QgsFeatureId fid = rowToId( index.row() );
+  if ( layer()->fields().fieldOrigin( fieldIndex ) == QgsFields::OriginJoin )
+  {
+    int srcFieldIndex;
+    const QgsVectorLayerJoinInfo *info = layer()->joinBuffer()->joinForFieldIndex( fieldIndex, layer()->fields(), srcFieldIndex );
+
+    if ( info && info->isEditable() )
+      editable = fieldIsEditable( *info->joinLayer(), srcFieldIndex, fid );
+  }
+  else
+    editable = fieldIsEditable( *layer(), fieldIndex, fid );
+
+  if ( editable )
     flags |= Qt::ItemIsEditable;
 
   return flags;
 }
 
+bool QgsAttributeTableModel::fieldIsEditable( const QgsVectorLayer &layer, int fieldIndex, QgsFeatureId fid ) const
+{
+  return ( layer.isEditable() &&
+           !layer.editFormConfig().readOnly( fieldIndex ) &&
+           ( ( layer.dataProvider() && layer.dataProvider()->capabilities() & QgsVectorDataProvider::ChangeAttributeValues ) || FID_IS_NEW( fid ) ) );
+}
+
 void QgsAttributeTableModel::reload( const QModelIndex &index1, const QModelIndex &index2 )
 {
-  mFeat.setFeatureId( std::numeric_limits<int>::min() );
+  mFeat.setId( std::numeric_limits<int>::min() );
   emit dataChanged( index1, index2 );
 }
 
 
-void QgsAttributeTableModel::executeAction( int action, const QModelIndex &idx ) const
+void QgsAttributeTableModel::executeAction( QUuid action, const QModelIndex &idx ) const
 {
   QgsFeature f = feature( idx );
   layer()->actions()->doAction( action, f, fieldIdx( idx.column() ) );
 }
 
-void QgsAttributeTableModel::executeMapLayerAction( QgsMapLayerAction* action, const QModelIndex &idx ) const
+void QgsAttributeTableModel::executeMapLayerAction( QgsMapLayerAction *action, const QModelIndex &idx ) const
 {
   QgsFeature f = feature( idx );
   action->triggerForFeature( layer(), &f );
@@ -753,7 +798,7 @@ QgsFeature QgsAttributeTableModel::feature( const QModelIndex &idx ) const
 {
   QgsFeature f;
   f.initAttributes( mAttributes.size() );
-  f.setFeatureId( rowToId( idx.row() ) );
+  f.setId( rowToId( idx.row() ) );
   for ( int i = 0; i < mAttributes.size(); i++ )
   {
     f.setAttribute( mAttributes[i], data( index( idx.row(), i ), Qt::EditRole ) );
@@ -766,7 +811,7 @@ void QgsAttributeTableModel::prefetchColumnData( int column )
 {
   if ( column == -1 || column >= mAttributes.count() )
   {
-    prefetchSortData( "" );
+    prefetchSortData( QString() );
   }
   else
   {
@@ -774,20 +819,27 @@ void QgsAttributeTableModel::prefetchColumnData( int column )
   }
 }
 
-void QgsAttributeTableModel::prefetchSortData( const QString& expressionString )
+void QgsAttributeTableModel::prefetchSortData( const QString &expressionString )
 {
   mSortCache.clear();
   mSortCacheAttributes.clear();
   mSortFieldIndex = -1;
-  mSortCacheExpression = QgsExpression( expressionString );
+  if ( !expressionString.isEmpty() )
+    mSortCacheExpression = QgsExpression( expressionString );
+  else
+  {
+    // no sorting
+    mSortCacheExpression = QgsExpression();
+    return;
+  }
 
-  QgsEditorWidgetFactory* widgetFactory = nullptr;
+  QgsFieldFormatter *fieldFormatter = nullptr;
   QVariant widgetCache;
-  QgsEditorWidgetConfig widgetConfig;
+  QVariantMap widgetConfig;
 
   if ( mSortCacheExpression.isField() )
   {
-    QString fieldName = static_cast<const QgsExpression::NodeColumnRef*>( mSortCacheExpression.rootNode() )->name();
+    QString fieldName = static_cast<const QgsExpressionNodeColumnRef *>( mSortCacheExpression.rootNode() )->name();
     mSortFieldIndex = mLayerCache->layer()->fields().lookupField( fieldName );
   }
 
@@ -795,7 +847,7 @@ void QgsAttributeTableModel::prefetchSortData( const QString& expressionString )
   {
     mSortCacheExpression.prepare( &mExpressionContext );
 
-    Q_FOREACH ( const QString& col, mSortCacheExpression.referencedColumns() )
+    Q_FOREACH ( const QString &col, mSortCacheExpression.referencedColumns() )
     {
       mSortCacheAttributes.append( mLayerCache->layer()->fields().lookupField( col ) );
     }
@@ -804,9 +856,9 @@ void QgsAttributeTableModel::prefetchSortData( const QString& expressionString )
   {
     mSortCacheAttributes.append( mSortFieldIndex );
 
-    widgetFactory = mWidgetFactories.at( mSortFieldIndex );
     widgetCache = mAttributeWidgetCaches.at( mSortFieldIndex );
     widgetConfig = mWidgetConfigs.at( mSortFieldIndex );
+    fieldFormatter = mFieldFormatters.at( mSortFieldIndex );
   }
 
   QgsFeatureRequest request = QgsFeatureRequest( mFeatureRequest )
@@ -824,7 +876,7 @@ void QgsAttributeTableModel::prefetchSortData( const QString& expressionString )
     }
     else
     {
-      QVariant sortValue = widgetFactory->sortValue( layer(), mSortFieldIndex, widgetConfig, widgetCache, f.attribute( mSortFieldIndex ) );
+      QVariant sortValue = fieldFormatter->sortValue( layer(), mSortFieldIndex, widgetConfig, widgetCache, f.attribute( mSortFieldIndex ) );
       mSortCache.insert( f.id(), sortValue );
     }
   }
@@ -832,20 +884,20 @@ void QgsAttributeTableModel::prefetchSortData( const QString& expressionString )
 
 QString QgsAttributeTableModel::sortCacheExpression() const
 {
-  if ( mSortCacheExpression.rootNode() )
+  if ( mSortCacheExpression.isValid() )
     return mSortCacheExpression.expression();
   else
     return QString();
 }
 
-void QgsAttributeTableModel::setRequest( const QgsFeatureRequest& request )
+void QgsAttributeTableModel::setRequest( const QgsFeatureRequest &request )
 {
   mFeatureRequest = request;
-  if ( layer() && !layer()->hasGeometryType() )
+  if ( layer() && !layer()->isSpatial() )
     mFeatureRequest.setFlags( mFeatureRequest.flags() | QgsFeatureRequest::NoGeometry );
 }
 
-const QgsFeatureRequest& QgsAttributeTableModel::request() const
+const QgsFeatureRequest &QgsAttributeTableModel::request() const
 {
   return mFeatureRequest;
 }

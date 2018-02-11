@@ -42,9 +42,21 @@
        <enum>QFrame::Raised</enum>
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_2">
-       <property name="margin">
+       <property name="leftMargin">
         <number>0</number>
        </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="QgsFilterLineEdit" name="mSearchLineEdit"/>
+       </item>
        <item>
         <widget class="QListWidget" name="mOptionsListWidget">
          <property name="minimumSize">
@@ -106,19 +118,7 @@
          </item>
          <item>
           <property name="text">
-           <string>Identify layers</string>
-          </property>
-          <property name="toolTip">
-           <string>Identifiable layers</string>
-          </property>
-          <property name="icon">
-           <iconset resource="../../images/images.qrc">
-            <normaloff>:/images/themes/default/propertyicons/map_tools.png</normaloff>:/images/themes/default/propertyicons/map_tools.png</iconset>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Default styles</string>
+           <string>Default Styles</string>
           </property>
           <property name="toolTip">
            <string>Default styles</string>
@@ -130,14 +130,50 @@
          </item>
          <item>
           <property name="text">
-           <string>OWS server</string>
+           <string>Identify Layers</string>
           </property>
           <property name="toolTip">
-           <string>WMS/WFS Server Configuration</string>
+           <string>Identifiable layers</string>
           </property>
           <property name="icon">
            <iconset resource="../../images/images.qrc">
-            <normaloff>:/images/themes/default/propertyicons/overlay.png</normaloff>:/images/themes/default/propertyicons/overlay.png</iconset>
+            <normaloff>:/images/themes/default/propertyicons/map_tools.png</normaloff>:/images/themes/default/propertyicons/map_tools.png</iconset>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Data Sources</string>
+          </property>
+          <property name="toolTip">
+           <string>Data sources</string>
+          </property>
+          <property name="icon">
+           <iconset resource="../../images/images.qrc">
+            <normaloff>:/images/themes/default/propertyicons/attributes.png</normaloff>:/images/themes/default/propertyicons/attributes.png</iconset>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Relations</string>
+          </property>
+          <property name="toolTip">
+           <string>Relations</string>
+          </property>
+          <property name="icon">
+           <iconset resource="../../images/images.qrc">
+            <normaloff>:/images/themes/default/relation.svg</normaloff>:/images/themes/default/relation.svg</iconset>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Variables</string>
+          </property>
+          <property name="toolTip">
+           <string>Variables</string>
+          </property>
+          <property name="icon">
+           <iconset resource="../../images/images.qrc">
+            <normaloff>:/images/themes/default/mIconExpression.svg</normaloff>:/images/themes/default/mIconExpression.svg</iconset>
           </property>
          </item>
          <item>
@@ -154,29 +190,14 @@
          </item>
          <item>
           <property name="text">
-           <string>Relations</string>
+           <string>QGIS Server</string>
+          </property>
+          <property name="toolTip">
+           <string>WMS/WFS/WCS Server Configuration</string>
           </property>
           <property name="icon">
            <iconset resource="../../images/images.qrc">
-            <normaloff>:/images/themes/default/relation.svg</normaloff>:/images/themes/default/relation.svg</iconset>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Data Sources</string>
-          </property>
-          <property name="icon">
-           <iconset resource="../../images/images.qrc">
-            <normaloff>:/images/themes/default/propertyicons/attributes.png</normaloff>:/images/themes/default/propertyicons/attributes.png</iconset>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Variables</string>
-          </property>
-          <property name="icon">
-           <iconset resource="../../images/images.qrc">
-            <normaloff>:/images/themes/default/mIconExpression.svg</normaloff>:/images/themes/default/mIconExpression.svg</iconset>
+            <normaloff>:/images/themes/default/propertyicons/overlay.png</normaloff>:/images/themes/default/propertyicons/overlay.png</iconset>
           </property>
          </item>
         </widget>
@@ -197,7 +218,16 @@
        <enum>QFrame::Raised</enum>
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_3">
-       <property name="margin">
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
         <number>0</number>
        </property>
        <item>
@@ -209,15 +239,24 @@
           </sizepolicy>
          </property>
          <property name="currentIndex">
-          <number>0</number>
+          <number>1</number>
          </property>
-         <widget class="QWidget" name="mProjOpts_01">
+         <widget class="QWidget" name="mProjOptsGeneral">
           <layout class="QVBoxLayout" name="verticalLayout_6">
-           <property name="margin">
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
             <number>0</number>
            </property>
            <item>
-            <widget class="QScrollArea" name="scrollArea_2">
+            <widget class="QgsScrollArea" name="scrollArea_2">
              <property name="frameShape">
               <enum>QFrame::NoFrame</enum>
              </property>
@@ -229,8 +268,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>694</width>
-                <height>779</height>
+                <width>565</width>
+                <height>699</height>
                </rect>
               </property>
               <layout class="QVBoxLayout" name="verticalLayout_8">
@@ -245,10 +284,56 @@
                  <property name="title">
                   <string>General settings</string>
                  </property>
-                 <property name="syncGroup" stdset="0">
+                 <property name="syncGroup">
                   <string notr="true">projgeneral</string>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_26">
+                  <item row="3" column="0">
+                   <widget class="QLabel" name="label_3">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
+                    </property>
+                    <property name="text">
+                     <string>Save paths</string>
+                    </property>
+                    <property name="buddy">
+                     <cstring>cbxAbsolutePath</cstring>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="3" column="1">
+                   <widget class="QComboBox" name="cbxAbsolutePath">
+                    <item>
+                     <property name="text">
+                      <string>absolute</string>
+                     </property>
+                    </item>
+                    <item>
+                     <property name="text">
+                      <string>relative</string>
+                     </property>
+                    </item>
+                   </widget>
+                  </item>
+                  <item row="0" column="0">
+                   <widget class="QLabel" name="label_4">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
+                    </property>
+                    <property name="text">
+                     <string>Project file</string>
+                    </property>
+                    <property name="buddy">
+                     <cstring>titleEdit</cstring>
+                    </property>
+                   </widget>
+                  </item>
                   <item row="2" column="0" colspan="5">
                    <layout class="QHBoxLayout" name="horizontalLayout_5">
                     <item>
@@ -349,22 +434,6 @@
                     </property>
                    </widget>
                   </item>
-                  <item row="0" column="0">
-                   <widget class="QLabel" name="label_4">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                    <property name="text">
-                     <string>Project file</string>
-                    </property>
-                    <property name="buddy">
-                     <cstring>titleEdit</cstring>
-                    </property>
-                   </widget>
-                  </item>
                   <item row="3" column="3" colspan="2">
                    <spacer>
                     <property name="orientation">
@@ -377,36 +446,6 @@
                      </size>
                     </property>
                    </spacer>
-                  </item>
-                  <item row="3" column="1">
-                   <widget class="QComboBox" name="cbxAbsolutePath">
-                    <item>
-                     <property name="text">
-                      <string>absolute</string>
-                     </property>
-                    </item>
-                    <item>
-                     <property name="text">
-                      <string>relative</string>
-                     </property>
-                    </item>
-                   </widget>
-                  </item>
-                  <item row="3" column="0">
-                   <widget class="QLabel" name="label_3">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                    <property name="text">
-                     <string>Save paths</string>
-                    </property>
-                    <property name="buddy">
-                     <cstring>cbxAbsolutePath</cstring>
-                    </property>
-                   </widget>
                   </item>
                   <item row="4" column="0" colspan="5">
                    <widget class="QCheckBox" name="mMapTileRenderingCheckBox">
@@ -429,11 +468,32 @@
                    </widget>
                   </item>
                   <item row="0" column="1" colspan="4">
-                   <widget class="QLineEdit" name="mProjectFileLineEdit">
-                    <property name="readOnly">
-                     <bool>true</bool>
-                    </property>
-                   </widget>
+                   <layout class="QHBoxLayout" name="horizontalLayout_13">
+                    <item>
+                     <widget class="QLineEdit" name="mProjectFileLineEdit">
+                      <property name="readOnly">
+                       <bool>true</bool>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QToolButton" name="mButtonOpenProjectFolder">
+                      <property name="toolTip">
+                       <string>Open folder containing the project</string>
+                      </property>
+                      <property name="text">
+                       <string>…</string>
+                      </property>
+                      <property name="icon">
+                       <iconset resource="../../images/images.qrc">
+                        <normaloff>:/images/themes/default/mActionFileOpen.svg</normaloff>:/images/themes/default/mActionFileOpen.svg</iconset>
+                      </property>
+                      <property name="autoRaise">
+                       <bool>true</bool>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
                   </item>
                  </layout>
                 </widget>
@@ -443,7 +503,7 @@
                  <property name="title">
                   <string>Measurements</string>
                  </property>
-                 <property name="syncGroup" stdset="0">
+                 <property name="syncGroup">
                   <string notr="true">projgeneral</string>
                  </property>
                  <layout class="QGridLayout" name="gridLayoutMeasureTool">
@@ -451,7 +511,7 @@
                    <widget class="QLabel" name="textLabel1_8">
                     <property name="text">
                      <string>Ellipsoid
-(for distance calculations)</string>
+(for distance and area calculations)</string>
                     </property>
                    </widget>
                   </item>
@@ -512,7 +572,7 @@
                  <property name="title">
                   <string>Coordinate display</string>
                  </property>
-                 <property name="syncGroup" stdset="0">
+                 <property name="syncGroup">
                   <string notr="true">projgeneral</string>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_18">
@@ -594,7 +654,7 @@
                   </sizepolicy>
                  </property>
                  <property name="title">
-                  <string>Project scales</string>
+                  <string>Project predefined scales</string>
                  </property>
                  <property name="checkable">
                   <bool>true</bool>
@@ -602,7 +662,7 @@
                  <property name="checked">
                   <bool>false</bool>
                  </property>
-                 <property name="syncGroup" stdset="0">
+                 <property name="syncGroup">
                   <string notr="true">projgeneral</string>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_7">
@@ -613,8 +673,11 @@
                    <layout class="QVBoxLayout" name="verticalLayout_4">
                     <item>
                      <widget class="QToolButton" name="pbnAddScale">
+                      <property name="toolTip">
+                       <string>Add predefined scale</string>
+                      </property>
                       <property name="text">
-                       <string>...</string>
+                       <string>…</string>
                       </property>
                       <property name="icon">
                        <iconset resource="../../images/images.qrc">
@@ -624,8 +687,11 @@
                     </item>
                     <item>
                      <widget class="QToolButton" name="pbnRemoveScale">
+                      <property name="toolTip">
+                       <string>Remove selected scale</string>
+                      </property>
                       <property name="text">
-                       <string>...</string>
+                       <string>…</string>
                       </property>
                       <property name="icon">
                        <iconset resource="../../images/images.qrc">
@@ -635,8 +701,11 @@
                     </item>
                     <item>
                      <widget class="QToolButton" name="pbnImportScales">
+                      <property name="toolTip">
+                       <string>Import from file</string>
+                      </property>
                       <property name="text">
-                       <string>...</string>
+                       <string>…</string>
                       </property>
                       <property name="icon">
                        <iconset resource="../../images/images.qrc">
@@ -646,8 +715,11 @@
                     </item>
                     <item>
                      <widget class="QToolButton" name="pbnExportScales">
+                      <property name="toolTip">
+                       <string>Save to file</string>
+                      </property>
                       <property name="text">
-                       <string>...</string>
+                       <string>…</string>
                       </property>
                       <property name="icon">
                        <iconset resource="../../images/images.qrc">
@@ -692,13 +764,22 @@
            </item>
           </layout>
          </widget>
-         <widget class="QWidget" name="mProjOpts_02">
+         <widget class="QWidget" name="mProjOptsCRS">
           <layout class="QVBoxLayout" name="verticalLayout_5">
-           <property name="margin">
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
             <number>0</number>
            </property>
            <item>
-            <widget class="QScrollArea" name="scrollArea">
+            <widget class="QgsScrollArea" name="scrollArea">
              <property name="frameShape">
               <enum>QFrame::NoFrame</enum>
              </property>
@@ -710,106 +791,45 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>694</width>
-                <height>779</height>
+                <width>676</width>
+                <height>764</height>
                </rect>
               </property>
               <layout class="QVBoxLayout" name="verticalLayout_7">
-               <property name="topMargin">
-                <number>0</number>
-               </property>
-               <property name="bottomMargin">
-                <number>0</number>
-               </property>
                <item>
                 <widget class="QGroupBox" name="cbxProjectionEnabled">
                  <property name="title">
-                  <string>Enable 'on the fly' CRS transformation (OTF)</string>
+                  <string>Project Coordinate Reference System (CRS)</string>
                  </property>
                  <property name="checkable">
-                  <bool>true</bool>
+                  <bool>false</bool>
                  </property>
                  <layout class="QVBoxLayout" name="verticalLayout_21">
                   <item>
-                   <widget class="QgsProjectionSelector" name="projectionSelector" native="true"/>
+                   <widget class="QgsProjectionSelectionTreeWidget" name="projectionSelector" native="true"/>
                   </item>
                  </layout>
                 </widget>
                </item>
-              </layout>
-             </widget>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-         <widget class="QWidget" name="mProjOpts_03">
-          <layout class="QVBoxLayout" name="verticalLayout_9">
-           <property name="margin">
-            <number>0</number>
-           </property>
-           <item>
-            <widget class="QScrollArea" name="scrollArea_3">
-             <property name="frameShape">
-              <enum>QFrame::NoFrame</enum>
-             </property>
-             <property name="widgetResizable">
-              <bool>true</bool>
-             </property>
-             <widget class="QWidget" name="scrollAreaWidgetContents_3">
-              <property name="geometry">
-               <rect>
-                <x>0</x>
-                <y>0</y>
-                <width>694</width>
-                <height>779</height>
-               </rect>
-              </property>
-              <layout class="QVBoxLayout" name="verticalLayout_10">
-               <property name="topMargin">
-                <number>0</number>
-               </property>
-               <property name="bottomMargin">
-                <number>0</number>
-               </property>
                <item>
-                <widget class="QGroupBox" name="groupBox_3">
-                 <property name="minimumSize">
-                  <size>
-                   <width>0</width>
-                   <height>100</height>
-                  </size>
-                 </property>
+                <widget class="QGroupBox" name="mDatumTransformGroupBox">
                  <property name="title">
-                  <string>Project layers</string>
+                  <string>Datum transformations</string>
                  </property>
-                 <layout class="QVBoxLayout" name="verticalLayout_22">
-                  <item>
-                   <widget class="QTableWidget" name="twIdentifyLayers">
-                    <property name="sortingEnabled">
-                     <bool>true</bool>
+                 <layout class="QGridLayout" name="gridLayout_2">
+                  <item row="0" column="0">
+                   <widget class="QCheckBox" name="mShowDatumTransformDialogCheckBox">
+                    <property name="enabled">
+                     <bool>false</bool>
                     </property>
-                    <column>
-                     <property name="text">
-                      <string>Layer</string>
-                     </property>
-                    </column>
-                    <column>
-                     <property name="text">
-                      <string>Type</string>
-                     </property>
-                    </column>
-                    <column>
-                     <property name="text">
-                      <string>Identifiable</string>
-                     </property>
-                    </column>
-                    <column>
-                     <property name="text">
-                      <string>Read Only</string>
-                     </property>
-                    </column>
+                    <property name="text">
+                     <string>Ask for datum transformation if several are available (defined in global setting)</string>
+                    </property>
                    </widget>
                   </item>
+                  <item row="1" column="0">
+                   <widget class="QgsDatumTransformTableWidget" name="mDatumTransformTableWidget" native="true"/>
+                  </item>
                  </layout>
                 </widget>
                </item>
@@ -819,13 +839,22 @@
            </item>
           </layout>
          </widget>
-         <widget class="QWidget" name="mProjOpts_04">
+         <widget class="QWidget" name="mProjOptsSymbols">
           <layout class="QVBoxLayout" name="verticalLayout_11">
-           <property name="margin">
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
             <number>0</number>
            </property>
            <item>
-            <widget class="QScrollArea" name="scrollArea_4">
+            <widget class="QgsScrollArea" name="scrollArea_4">
              <property name="frameShape">
               <enum>QFrame::NoFrame</enum>
              </property>
@@ -837,8 +866,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>694</width>
-                <height>779</height>
+                <width>269</width>
+                <height>605</height>
                </rect>
               </property>
               <layout class="QVBoxLayout" name="verticalLayout_12">
@@ -847,7 +876,7 @@
                  <property name="title">
                   <string>Default symbols</string>
                  </property>
-                 <property name="syncGroup" stdset="0">
+                 <property name="syncGroup">
                   <string notr="true">projstyles</string>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_11">
@@ -856,8 +885,11 @@
                   </property>
                   <item row="0" column="5">
                    <widget class="QToolButton" name="pbtnStyleMarker">
+                    <property name="toolTip">
+                     <string>Edit symbol</string>
+                    </property>
                     <property name="text">
-                     <string>...</string>
+                     <string>…</string>
                     </property>
                     <property name="icon">
                      <iconset resource="../../images/images.qrc">
@@ -887,7 +919,7 @@
                      <string/>
                     </property>
                     <property name="pixmap">
-                     <pixmap resource="../../images/images.qrc">:/images/themes/default/styleicons/color.png</pixmap>
+                     <pixmap resource="../../images/images.qrc">:/images/themes/default/styleicons/color.svg</pixmap>
                     </property>
                    </widget>
                   </item>
@@ -903,14 +935,17 @@
                      <string/>
                     </property>
                     <property name="pixmap">
-                     <pixmap resource="../../images/images.qrc">:/images/themes/default/styleicons/style-polygon.png</pixmap>
+                     <pixmap resource="../../images/images.qrc">:/images/themes/default/mIconPolygonLayer.svg</pixmap>
                     </property>
                    </widget>
                   </item>
                   <item row="1" column="5">
                    <widget class="QToolButton" name="pbtnStyleLine">
+                    <property name="toolTip">
+                     <string>Edit symbol</string>
+                    </property>
                     <property name="text">
-                     <string>...</string>
+                     <string>…</string>
                     </property>
                     <property name="icon">
                      <iconset resource="../../images/images.qrc">
@@ -930,7 +965,7 @@
                      <string/>
                     </property>
                     <property name="pixmap">
-                     <pixmap resource="../../images/images.qrc">:/images/themes/default/styleicons/style-line.png</pixmap>
+                     <pixmap resource="../../images/images.qrc">:/images/themes/default/mIconLineLayer.svg</pixmap>
                     </property>
                    </widget>
                   </item>
@@ -982,7 +1017,7 @@
                      <string/>
                     </property>
                     <property name="pixmap">
-                     <pixmap resource="../../images/images.qrc">:/images/themes/default/styleicons/style-point.png</pixmap>
+                     <pixmap resource="../../images/images.qrc">:/images/themes/default/mIconPointLayer.svg</pixmap>
                     </property>
                    </widget>
                   </item>
@@ -998,8 +1033,11 @@
                   </item>
                   <item row="2" column="5">
                    <widget class="QToolButton" name="pbtnStyleFill">
+                    <property name="toolTip">
+                     <string>Edit symbol</string>
+                    </property>
                     <property name="text">
-                     <string>...</string>
+                     <string>…</string>
                     </property>
                     <property name="icon">
                      <iconset resource="../../images/images.qrc">
@@ -1045,8 +1083,11 @@
                   </item>
                   <item row="3" column="5">
                    <widget class="QToolButton" name="pbtnStyleColorRamp">
+                    <property name="toolTip">
+                     <string>Edit symbol</string>
+                    </property>
                     <property name="text">
-                     <string>...</string>
+                     <string>…</string>
                     </property>
                     <property name="icon">
                      <iconset resource="../../images/images.qrc">
@@ -1062,69 +1103,25 @@
                  <property name="title">
                   <string>Options</string>
                  </property>
-                 <property name="syncGroup" stdset="0">
+                 <property name="syncGroup">
                   <string notr="true">projstyles</string>
                  </property>
                  <layout class="QVBoxLayout" name="verticalLayout_18">
                   <item>
-                   <layout class="QHBoxLayout" name="horizontalLayout_6">
+                   <layout class="QHBoxLayout" name="horizontalLayout_6" stretch="0,1">
                     <item>
-                     <widget class="QLabel" name="mTransparencyLabel">
+                     <widget class="QLabel" name="label_27">
                       <property name="text">
-                       <string>Transparency</string>
+                       <string>Opacity</string>
                       </property>
                      </widget>
                     </item>
                     <item>
-                     <widget class="QSlider" name="mTransparencySlider">
-                      <property name="sizePolicy">
-                       <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                        <horstretch>0</horstretch>
-                        <verstretch>0</verstretch>
-                       </sizepolicy>
-                      </property>
-                      <property name="minimumSize">
-                       <size>
-                        <width>150</width>
-                        <height>0</height>
-                       </size>
-                      </property>
-                      <property name="maximumSize">
-                       <size>
-                        <width>150</width>
-                        <height>16777215</height>
-                       </size>
-                      </property>
-                      <property name="maximum">
-                       <number>100</number>
-                      </property>
-                      <property name="orientation">
-                       <enum>Qt::Horizontal</enum>
+                     <widget class="QgsOpacityWidget" name="mDefaultOpacityWidget">
+                      <property name="focusPolicy">
+                       <enum>Qt::StrongFocus</enum>
                       </property>
                      </widget>
-                    </item>
-                    <item>
-                     <widget class="QSpinBox" name="mTransparencySpinBox">
-                      <property name="suffix">
-                       <string> %</string>
-                      </property>
-                      <property name="maximum">
-                       <number>100</number>
-                      </property>
-                     </widget>
-                    </item>
-                    <item>
-                     <spacer name="horizontalSpacer_5">
-                      <property name="orientation">
-                       <enum>Qt::Horizontal</enum>
-                      </property>
-                      <property name="sizeHint" stdset="0">
-                       <size>
-                        <width>40</width>
-                        <height>20</height>
-                       </size>
-                      </property>
-                     </spacer>
                     </item>
                    </layout>
                   </item>
@@ -1178,7 +1175,7 @@
                     </property>
                     <property name="icon">
                      <iconset resource="../../images/images.qrc">
-                      <normaloff>:/images/themes/default/mActionCopySelected.png</normaloff>:/images/themes/default/mActionCopySelected.png</iconset>
+                      <normaloff>:/images/themes/default/mActionEditCopy.svg</normaloff>:/images/themes/default/mActionEditCopy.svg</iconset>
                     </property>
                    </widget>
                   </item>
@@ -1242,8 +1239,11 @@
                   </item>
                   <item row="4" column="1">
                    <widget class="QToolButton" name="mButtonImportColors">
-                    <property name="statusTip">
+                    <property name="toolTip">
                      <string>Import colors</string>
+                    </property>
+                    <property name="statusTip">
+                     <string/>
                     </property>
                     <property name="text">
                      <string/>
@@ -1277,13 +1277,240 @@
            </item>
           </layout>
          </widget>
-         <widget class="QWidget" name="mProjOpts_05">
-          <layout class="QVBoxLayout" name="verticalLayout_14">
-           <property name="margin">
+         <widget class="QWidget" name="mProjOptsLayers">
+          <layout class="QVBoxLayout" name="verticalLayout_9">
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
             <number>0</number>
            </property>
            <item>
-            <widget class="QScrollArea" name="scrollArea_5">
+            <widget class="QgsScrollArea" name="scrollArea_3">
+             <property name="frameShape">
+              <enum>QFrame::NoFrame</enum>
+             </property>
+             <property name="widgetResizable">
+              <bool>true</bool>
+             </property>
+             <widget class="QWidget" name="scrollAreaWidgetContents_3">
+              <property name="geometry">
+               <rect>
+                <x>0</x>
+                <y>0</y>
+                <width>676</width>
+                <height>764</height>
+               </rect>
+              </property>
+              <layout class="QVBoxLayout" name="verticalLayout_10">
+               <property name="topMargin">
+                <number>0</number>
+               </property>
+               <property name="bottomMargin">
+                <number>0</number>
+               </property>
+               <item>
+                <widget class="QGroupBox" name="groupBox_3">
+                 <property name="minimumSize">
+                  <size>
+                   <width>0</width>
+                   <height>100</height>
+                  </size>
+                 </property>
+                 <property name="title">
+                  <string>Project layers</string>
+                 </property>
+                 <layout class="QVBoxLayout" name="verticalLayout_22">
+                  <item>
+                   <widget class="QTableWidget" name="twIdentifyLayers">
+                    <property name="sortingEnabled">
+                     <bool>true</bool>
+                    </property>
+                    <column>
+                     <property name="text">
+                      <string>Layer</string>
+                     </property>
+                    </column>
+                    <column>
+                     <property name="text">
+                      <string>Type</string>
+                     </property>
+                    </column>
+                    <column>
+                     <property name="text">
+                      <string>Identifiable</string>
+                     </property>
+                    </column>
+                    <column>
+                     <property name="text">
+                      <string>Read Only</string>
+                     </property>
+                    </column>
+                   </widget>
+                  </item>
+                 </layout>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="mTab_DataSources">
+          <layout class="QFormLayout" name="formLayout">
+           <item row="0" column="0" colspan="2">
+            <widget class="QCheckBox" name="mAutoTransaction">
+             <property name="toolTip">
+              <string>When enabled, layers from the same database connection will be put into a transaction group. Their edit state will be synchronized and changes to these layers will be sent to the provider immediately. Only supported on postgres provider.</string>
+             </property>
+             <property name="text">
+              <string>Automatically create transaction groups where possible</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QCheckBox" name="mEvaluateDefaultValues">
+             <property name="toolTip">
+              <string>When enabled, default values will be evaluated as early as possible. This will fill default values in the add feature form already and not only create them on commit. Only supported for postgres provider.</string>
+             </property>
+             <property name="text">
+              <string>Evaluate default values on provider side</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QCheckBox" name="mTrustProjectCheckBox">
+             <property name="toolTip">
+              <string>Speed up project loading by skipping data checks. Useful in qgis server context or project with huge database views or materialized views.</string>
+             </property>
+             <property name="text">
+              <string>Trust project when data source has no metadata</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="mTabRelations">
+          <layout class="QGridLayout" name="gridLayout_16">
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="mTab_Variables">
+          <layout class="QVBoxLayout" name="verticalLayout_23">
+           <item>
+            <widget class="QGroupBox" name="groupBox_4">
+             <property name="title">
+              <string>Expression Variables</string>
+             </property>
+             <layout class="QHBoxLayout" name="horizontalLayout_7">
+              <item>
+               <widget class="QgsVariableEditorWidget" name="mVariableEditor" native="true">
+                <property name="settingGroup" stdset="0">
+                 <string notr="true">projectProperties</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="mProjOptsMacros">
+          <layout class="QVBoxLayout" name="verticalLayout_15">
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+           <item>
+            <widget class="QgsScrollArea" name="scrollArea_6">
+             <property name="frameShape">
+              <enum>QFrame::NoFrame</enum>
+             </property>
+             <property name="widgetResizable">
+              <bool>true</bool>
+             </property>
+             <widget class="QWidget" name="scrollAreaWidgetContents_6">
+              <property name="geometry">
+               <rect>
+                <x>0</x>
+                <y>0</y>
+                <width>156</width>
+                <height>59</height>
+               </rect>
+              </property>
+              <layout class="QVBoxLayout" name="verticalLayout_17">
+               <property name="topMargin">
+                <number>0</number>
+               </property>
+               <property name="bottomMargin">
+                <number>0</number>
+               </property>
+               <item>
+                <widget class="QGroupBox" name="grpPythonMacros">
+                 <property name="title">
+                  <string>Python macros</string>
+                 </property>
+                 <property name="checkable">
+                  <bool>true</bool>
+                 </property>
+                 <property name="checked">
+                  <bool>false</bool>
+                 </property>
+                 <layout class="QVBoxLayout" name="verticalLayout_16">
+                  <item>
+                   <widget class="QgsCodeEditorPython" name="ptePythonMacros" native="true"/>
+                  </item>
+                 </layout>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="mProjOptsOWS">
+          <layout class="QVBoxLayout" name="verticalLayout_14">
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+           <item>
+            <widget class="QgsScrollArea" name="scrollArea_5">
              <property name="frameShape">
               <enum>QFrame::NoFrame</enum>
              </property>
@@ -1294,9 +1521,9 @@
               <property name="geometry">
                <rect>
                 <x>0</x>
-                <y>-961</y>
-                <width>674</width>
-                <height>2470</height>
+                <y>0</y>
+                <width>598</width>
+                <height>2363</height>
                </rect>
               </property>
               <layout class="QVBoxLayout" name="verticalLayout_13">
@@ -1317,13 +1544,13 @@
                  <property name="checked">
                   <bool>false</bool>
                  </property>
-                 <property name="collapsed" stdset="0">
+                 <property name="collapsed">
                   <bool>false</bool>
                  </property>
-                 <property name="syncGroup" stdset="0">
+                 <property name="syncGroup">
                   <string notr="true">projowsserver</string>
                  </property>
-                 <property name="saveCollapsedState" stdset="0">
+                 <property name="saveCollapsedState">
                   <bool>true</bool>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_6">
@@ -1560,7 +1787,7 @@
                  <property name="title">
                   <string>WMS capabilities</string>
                  </property>
-                 <property name="syncGroup" stdset="0">
+                 <property name="syncGroup">
                   <string notr="true">projowsserver</string>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_13">
@@ -1575,10 +1802,10 @@
                     <property name="checked">
                      <bool>false</bool>
                     </property>
-                    <property name="collapsed" stdset="0">
+                    <property name="collapsed">
                      <bool>false</bool>
                     </property>
-                    <property name="saveCollapsedState" stdset="0">
+                    <property name="saveCollapsedState">
                      <bool>true</bool>
                     </property>
                     <layout class="QGridLayout" name="gridLayout_4">
@@ -1674,9 +1901,9 @@
                    </widget>
                   </item>
                   <item row="2" column="0">
-                   <widget class="QgsCollapsibleGroupBox" name="mWMSComposerGroupBox">
+                   <widget class="QgsCollapsibleGroupBox" name="mWMSPrintLayoutGroupBox">
                     <property name="title">
-                     <string>Exclude composers</string>
+                     <string>Exclude layouts</string>
                     </property>
                     <property name="checkable">
                      <bool>true</bool>
@@ -1684,18 +1911,21 @@
                     <property name="checked">
                      <bool>false</bool>
                     </property>
-                    <property name="collapsed" stdset="0">
+                    <property name="collapsed">
                      <bool>false</bool>
                     </property>
-                    <property name="saveCollapsedState" stdset="0">
+                    <property name="saveCollapsedState">
                      <bool>true</bool>
                     </property>
                     <layout class="QGridLayout" name="gridLayout_10">
                      <item row="0" column="0" colspan="3">
-                      <widget class="QListWidget" name="mComposerListWidget"/>
+                      <widget class="QListWidget" name="mPrintLayoutListWidget"/>
                      </item>
                      <item row="1" column="0">
-                      <widget class="QToolButton" name="mAddWMSComposerButton">
+                      <widget class="QToolButton" name="mAddWMSPrintLayoutButton">
+                       <property name="toolTip">
+                        <string>Add layout to exclude</string>
+                       </property>
                        <property name="text">
                         <string/>
                        </property>
@@ -1706,7 +1936,10 @@
                       </widget>
                      </item>
                      <item row="1" column="1">
-                      <widget class="QToolButton" name="mRemoveWMSComposerButton">
+                      <widget class="QToolButton" name="mRemoveWMSPrintLayoutButton">
+                       <property name="toolTip">
+                        <string>Remove selected layout</string>
+                       </property>
                        <property name="text">
                         <string/>
                        </property>
@@ -1743,10 +1976,10 @@
                     <property name="checked">
                      <bool>false</bool>
                     </property>
-                    <property name="collapsed" stdset="0">
+                    <property name="collapsed">
                      <bool>false</bool>
                     </property>
-                    <property name="saveCollapsedState" stdset="0">
+                    <property name="saveCollapsedState">
                      <bool>true</bool>
                     </property>
                     <layout class="QGridLayout" name="gridLayout">
@@ -1755,6 +1988,9 @@
                      </item>
                      <item row="1" column="0">
                       <widget class="QToolButton" name="mAddLayerRestrictionButton">
+                       <property name="toolTip">
+                        <string>Add layer to exclude</string>
+                       </property>
                        <property name="text">
                         <string/>
                        </property>
@@ -1766,6 +2002,9 @@
                      </item>
                      <item row="1" column="1">
                       <widget class="QToolButton" name="mRemoveLayerRestrictionButton">
+                       <property name="toolTip">
+                        <string>Remove selected layer</string>
+                       </property>
                        <property name="text">
                         <string/>
                        </property>
@@ -1802,15 +2041,18 @@
                     <property name="checked">
                      <bool>false</bool>
                     </property>
-                    <property name="collapsed" stdset="0">
+                    <property name="collapsed">
                      <bool>false</bool>
                     </property>
-                    <property name="saveCollapsedState" stdset="0">
+                    <property name="saveCollapsedState">
                      <bool>true</bool>
                     </property>
                     <layout class="QGridLayout" name="gridLayout_5">
                      <item row="1" column="0">
                       <widget class="QToolButton" name="pbnWMSAddSRS">
+                       <property name="toolTip">
+                        <string>Add new CRS</string>
+                       </property>
                        <property name="icon">
                         <iconset resource="../../images/images.qrc">
                          <normaloff>:/images/themes/default/symbologyAdd.svg</normaloff>:/images/themes/default/symbologyAdd.svg</iconset>
@@ -1822,6 +2064,9 @@
                      </item>
                      <item row="1" column="2">
                       <widget class="QPushButton" name="pbnWMSSetUsedSRS">
+                       <property name="toolTip">
+                        <string>Fetch all CRS's from layers</string>
+                       </property>
                        <property name="text">
                         <string>Used</string>
                        </property>
@@ -1829,6 +2074,9 @@
                      </item>
                      <item row="1" column="1">
                       <widget class="QToolButton" name="pbnWMSRemoveSRS">
+                       <property name="toolTip">
+                        <string>Remove selected CRS</string>
+                       </property>
                        <property name="icon">
                         <iconset resource="../../images/images.qrc">
                          <normaloff>:/images/themes/default/symbologyRemove.svg</normaloff>:/images/themes/default/symbologyRemove.svg</iconset>
@@ -1845,7 +2093,7 @@
                     </property>
                    </widget>
                   </item>
-                  <item row="11" column="0" colspan="2">
+                  <item row="12" column="0" colspan="2">
                    <layout class="QHBoxLayout" name="horizontalLayout_10">
                     <item>
                      <widget class="QLabel" name="mWMSImageQualityLabel">
@@ -1879,7 +2127,7 @@
                     </property>
                    </widget>
                   </item>
-                  <item row="10" column="0" colspan="2">
+                  <item row="11" column="0" colspan="2">
                    <layout class="QGridLayout" name="gridLayout_3">
                     <item row="1" column="1">
                      <widget class="QLabel" name="mMaxWidthLabel">
@@ -1926,7 +2174,7 @@
                     </item>
                    </layout>
                   </item>
-                  <item row="8" column="0" colspan="2">
+                  <item row="9" column="0" colspan="2">
                    <layout class="QHBoxLayout" name="grpWMSPrecision">
                     <item>
                      <widget class="QLabel" name="label_5">
@@ -1950,7 +2198,7 @@
                     </item>
                    </layout>
                   </item>
-                  <item row="9" column="0" colspan="2">
+                  <item row="10" column="0" colspan="2">
                    <layout class="QHBoxLayout" name="horizontalLayout_2">
                     <item>
                      <widget class="QLabel" name="mWMSUrlLabel">
@@ -1996,7 +2244,7 @@
                      <item row="4" column="0" colspan="2">
                       <widget class="QGroupBox" name="mWMSInspireScenario2">
                        <property name="title">
-                        <string>Scenario 2 - INSPIRE related fields using embedded service metadata:</string>
+                        <string>Scenario 2 - INSPIRE related fields using embedded service metadata</string>
                        </property>
                        <property name="checkable">
                         <bool>true</bool>
@@ -2096,10 +2344,17 @@
                     </layout>
                    </widget>
                   </item>
-                  <item row="7" column="0">
+                  <item row="8" column="0">
                    <widget class="QCheckBox" name="mSegmentizeFeatureInfoGeometryCheckBox">
                     <property name="text">
                      <string>Segmentize feature info geometry</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="7" column="0">
+                   <widget class="QCheckBox" name="mAllowRequestDefinedDataSourcesBox">
+                    <property name="text">
+                     <string>Allow defining datasources in server requests</string>
                     </property>
                    </widget>
                   </item>
@@ -2117,7 +2372,7 @@
                  <property name="title">
                   <string>WFS capabilities (also influences DXF export)</string>
                  </property>
-                 <property name="syncGroup" stdset="0">
+                 <property name="syncGroup">
                   <string notr="true">projowsserver</string>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_8">
@@ -2162,7 +2417,7 @@
                    </widget>
                   </item>
                   <item row="1" column="1">
-                   <widget class="QPushButton" name="pbnWFSLayersUnselectAll">
+                   <widget class="QPushButton" name="pbnWFSLayersDeselectAll">
                     <property name="text">
                      <string>Deselect all</string>
                     </property>
@@ -2203,7 +2458,7 @@
                  <property name="title">
                   <string>WCS capabilities</string>
                  </property>
-                 <property name="syncGroup" stdset="0">
+                 <property name="syncGroup">
                   <string notr="true">projowsserver</string>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_9">
@@ -2228,7 +2483,7 @@
                    </widget>
                   </item>
                   <item row="1" column="1">
-                   <widget class="QPushButton" name="pbnWCSLayersUnselectAll">
+                   <widget class="QPushButton" name="pbnWCSLayersDeselectAll">
                     <property name="text">
                      <string>Deselect all</string>
                     </property>
@@ -2341,110 +2596,6 @@
            </item>
           </layout>
          </widget>
-         <widget class="QWidget" name="mProjOpts_06">
-          <layout class="QVBoxLayout" name="verticalLayout_15">
-           <property name="margin">
-            <number>0</number>
-           </property>
-           <item>
-            <widget class="QScrollArea" name="scrollArea_6">
-             <property name="frameShape">
-              <enum>QFrame::NoFrame</enum>
-             </property>
-             <property name="widgetResizable">
-              <bool>true</bool>
-             </property>
-             <widget class="QWidget" name="scrollAreaWidgetContents_6">
-              <property name="geometry">
-               <rect>
-                <x>0</x>
-                <y>0</y>
-                <width>694</width>
-                <height>779</height>
-               </rect>
-              </property>
-              <layout class="QVBoxLayout" name="verticalLayout_17">
-               <property name="topMargin">
-                <number>0</number>
-               </property>
-               <property name="bottomMargin">
-                <number>0</number>
-               </property>
-               <item>
-                <widget class="QGroupBox" name="grpPythonMacros">
-                 <property name="title">
-                  <string>Python macros</string>
-                 </property>
-                 <property name="checkable">
-                  <bool>true</bool>
-                 </property>
-                 <property name="checked">
-                  <bool>false</bool>
-                 </property>
-                 <layout class="QVBoxLayout" name="verticalLayout_16">
-                  <item>
-                   <widget class="QgsCodeEditorPython" name="ptePythonMacros" native="true"/>
-                  </item>
-                 </layout>
-                </widget>
-               </item>
-              </layout>
-             </widget>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-         <widget class="QWidget" name="mTabRelations">
-          <layout class="QGridLayout" name="gridLayout_16">
-           <property name="margin">
-            <number>0</number>
-           </property>
-          </layout>
-         </widget>
-         <widget class="QWidget" name="mTab_DataSources">
-          <layout class="QFormLayout" name="formLayout">
-           <item row="0" column="0" colspan="2">
-            <widget class="QCheckBox" name="mAutoTransaction">
-             <property name="toolTip">
-              <string>When enabled, layers from the same database connection will be put into a transaction group. Their edit state will be synchronized and changes to these layers will be sent to the provider immediately. Only supported on postgres provider.</string>
-             </property>
-             <property name="text">
-              <string>Automatically create transaction groups where possible</string>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="0">
-            <widget class="QCheckBox" name="mEvaluateDefaultValues">
-             <property name="toolTip">
-              <string>When enabled, default values will be evaluated as early as possible. This will fill default values in the add feature form already and not only create them on commit. Only supported for postgres provider.</string>
-             </property>
-             <property name="text">
-              <string>Evaluate default values on provider side</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-         <widget class="QWidget" name="mTab_Variables">
-          <layout class="QVBoxLayout" name="verticalLayout_23">
-           <item>
-            <widget class="QGroupBox" name="groupBox_4">
-             <property name="title">
-              <string>Expression Variables</string>
-             </property>
-             <layout class="QHBoxLayout" name="horizontalLayout_7">
-              <item>
-               <widget class="QgsVariableEditorWidget" name="mVariableEditor" native="true">
-                <property name="settingGroup" stdset="0">
-                 <string notr="true">projectProperties</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </widget>
-           </item>
-          </layout>
-         </widget>
         </widget>
        </item>
       </layout>
@@ -2466,7 +2617,16 @@
       <enum>QFrame::Raised</enum>
      </property>
      <layout class="QHBoxLayout" name="horizontalLayout">
-      <property name="margin">
+      <property name="leftMargin">
+       <number>0</number>
+      </property>
+      <property name="topMargin">
+       <number>0</number>
+      </property>
+      <property name="rightMargin">
+       <number>0</number>
+      </property>
+      <property name="bottomMargin">
        <number>0</number>
       </property>
       <item>
@@ -2498,9 +2658,20 @@
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>QgsColorSchemeList</class>
+   <class>QgsFilterLineEdit</class>
+   <extends>QLineEdit</extends>
+   <header>qgsfilterlineedit.h</header>
+  </customwidget>
+  <customwidget>
+   <class>QgsOpacityWidget</class>
    <extends>QWidget</extends>
-   <header location="global">qgscolorschemelist.h</header>
+   <header>qgsopacitywidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>QgsScrollArea</class>
+   <extends>QScrollArea</extends>
+   <header>qgsscrollarea.h</header>
    <container>1</container>
   </customwidget>
   <customwidget>
@@ -2510,15 +2681,27 @@
    <container>1</container>
   </customwidget>
   <customwidget>
+   <class>QgsColorSchemeList</class>
+   <extends>QWidget</extends>
+   <header location="global">qgscolorschemelist.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
    <class>QgsCodeEditorPython</class>
    <extends>QWidget</extends>
    <header>qgscodeeditorpython.h</header>
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>QgsProjectionSelector</class>
+   <class>QgsProjectionSelectionTreeWidget</class>
    <extends>QWidget</extends>
-   <header>qgsprojectionselector.h</header>
+   <header>qgsprojectionselectiontreewidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>QgsDatumTransformTableWidget</class>
+   <extends>QWidget</extends>
+   <header>qgsdatumtransformtablewidget.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>
@@ -2526,6 +2709,7 @@
   <tabstop>mOptionsListWidget</tabstop>
   <tabstop>scrollArea_2</tabstop>
   <tabstop>mProjectFileLineEdit</tabstop>
+  <tabstop>mButtonOpenProjectFolder</tabstop>
   <tabstop>titleEdit</tabstop>
   <tabstop>pbnSelectionColor</tabstop>
   <tabstop>pbnCanvasColor</tabstop>
@@ -2541,15 +2725,13 @@
   <tabstop>radManual</tabstop>
   <tabstop>spinBoxDP</tabstop>
   <tabstop>grpProjectScales</tabstop>
-  <tabstop>lstScales</tabstop>
   <tabstop>pbnAddScale</tabstop>
   <tabstop>pbnRemoveScale</tabstop>
   <tabstop>pbnImportScales</tabstop>
   <tabstop>pbnExportScales</tabstop>
+  <tabstop>lstScales</tabstop>
   <tabstop>scrollArea</tabstop>
-  <tabstop>cbxProjectionEnabled</tabstop>
-  <tabstop>scrollArea_3</tabstop>
-  <tabstop>twIdentifyLayers</tabstop>
+  <tabstop>mShowDatumTransformDialogCheckBox</tabstop>
   <tabstop>scrollArea_4</tabstop>
   <tabstop>cboStyleMarker</tabstop>
   <tabstop>pbtnStyleMarker</tabstop>
@@ -2559,8 +2741,7 @@
   <tabstop>pbtnStyleFill</tabstop>
   <tabstop>cboStyleColorRamp</tabstop>
   <tabstop>pbtnStyleColorRamp</tabstop>
-  <tabstop>mTransparencySlider</tabstop>
-  <tabstop>mTransparencySpinBox</tabstop>
+  <tabstop>mDefaultOpacityWidget</tabstop>
   <tabstop>cbxStyleRandomColors</tabstop>
   <tabstop>pbtnStyleManager</tabstop>
   <tabstop>mButtonAddColor</tabstop>
@@ -2569,15 +2750,23 @@
   <tabstop>mButtonPasteColors</tabstop>
   <tabstop>mButtonImportColors</tabstop>
   <tabstop>mButtonExportColors</tabstop>
+  <tabstop>scrollArea_3</tabstop>
+  <tabstop>twIdentifyLayers</tabstop>
+  <tabstop>mAutoTransaction</tabstop>
+  <tabstop>mEvaluateDefaultValues</tabstop>
+  <tabstop>mTrustProjectCheckBox</tabstop>
+  <tabstop>scrollArea_6</tabstop>
+  <tabstop>grpPythonMacros</tabstop>
   <tabstop>scrollArea_5</tabstop>
   <tabstop>grpOWSServiceCapabilities</tabstop>
+  <tabstop>mWMSName</tabstop>
   <tabstop>mWMSTitle</tabstop>
   <tabstop>mWMSContactOrganization</tabstop>
   <tabstop>mWMSOnlineResourceLineEdit</tabstop>
   <tabstop>mWMSContactPerson</tabstop>
+  <tabstop>mWMSContactPositionCb</tabstop>
   <tabstop>mWMSContactMail</tabstop>
   <tabstop>mWMSContactPhone</tabstop>
-  <tabstop>mWMSContactPositionCb</tabstop>
   <tabstop>mWMSAbstract</tabstop>
   <tabstop>mWMSFeesCb</tabstop>
   <tabstop>mWMSAccessConstraintsCb</tabstop>
@@ -2589,20 +2778,31 @@
   <tabstop>mWMSExtMaxY</tabstop>
   <tabstop>pbnWMSExtCanvas</tabstop>
   <tabstop>grpWMSList</tabstop>
-  <tabstop>mWMSList</tabstop>
+  <tabstop>mSearchLineEdit</tabstop>
   <tabstop>pbnWMSAddSRS</tabstop>
   <tabstop>pbnWMSRemoveSRS</tabstop>
   <tabstop>pbnWMSSetUsedSRS</tabstop>
-  <tabstop>mWMSComposerGroupBox</tabstop>
-  <tabstop>mComposerListWidget</tabstop>
-  <tabstop>mAddWMSComposerButton</tabstop>
-  <tabstop>mRemoveWMSComposerButton</tabstop>
+  <tabstop>mWMSList</tabstop>
+  <tabstop>mWMSPrintLayoutGroupBox</tabstop>
+  <tabstop>mAddWMSPrintLayoutButton</tabstop>
+  <tabstop>mRemoveWMSPrintLayoutButton</tabstop>
+  <tabstop>mPrintLayoutListWidget</tabstop>
   <tabstop>mLayerRestrictionsGroupBox</tabstop>
-  <tabstop>mLayerRestrictionsListWidget</tabstop>
   <tabstop>mAddLayerRestrictionButton</tabstop>
   <tabstop>mRemoveLayerRestrictionButton</tabstop>
+  <tabstop>mLayerRestrictionsListWidget</tabstop>
+  <tabstop>mWMSInspire</tabstop>
+  <tabstop>mWMSInspireLanguage</tabstop>
+  <tabstop>mWMSInspireScenario1</tabstop>
+  <tabstop>mWMSInspireMetadataUrl</tabstop>
+  <tabstop>mWMSInspireMetadataUrlType</tabstop>
+  <tabstop>mWMSInspireScenario2</tabstop>
+  <tabstop>mWMSInspireTemporalReference</tabstop>
+  <tabstop>mWMSInspireMetadataDate</tabstop>
   <tabstop>mWmsUseLayerIDs</tabstop>
   <tabstop>mAddWktGeometryCheckBox</tabstop>
+  <tabstop>mAllowRequestDefinedDataSourcesBox</tabstop>
+  <tabstop>mSegmentizeFeatureInfoGeometryCheckBox</tabstop>
   <tabstop>mWMSPrecisionSpinBox</tabstop>
   <tabstop>mWMSUrlLineEdit</tabstop>
   <tabstop>mMaxWidthLineEdit</tabstop>
@@ -2610,27 +2810,14 @@
   <tabstop>mWMSImageQualitySpinBox</tabstop>
   <tabstop>twWFSLayers</tabstop>
   <tabstop>pbnWFSLayersSelectAll</tabstop>
-  <tabstop>pbnWFSLayersUnselectAll</tabstop>
+  <tabstop>pbnWFSLayersDeselectAll</tabstop>
   <tabstop>mWFSUrlLineEdit</tabstop>
   <tabstop>twWCSLayers</tabstop>
   <tabstop>pbnWCSLayersSelectAll</tabstop>
-  <tabstop>pbnWCSLayersUnselectAll</tabstop>
+  <tabstop>pbnWCSLayersDeselectAll</tabstop>
   <tabstop>mWCSUrlLineEdit</tabstop>
-  <tabstop>grpPythonMacros</tabstop>
-  <tabstop>scrollArea_6</tabstop>
-  <tabstop>mWMSName</tabstop>
-  <tabstop>mWMSInspire</tabstop>
-  <tabstop>mWMSInspireLanguage</tabstop>
-  <tabstop>mWMSInspireScenario2</tabstop>
-  <tabstop>mWMSInspireTemporalReference</tabstop>
-  <tabstop>mWMSInspireMetadataDate</tabstop>
-  <tabstop>mWMSInspireScenario1</tabstop>
-  <tabstop>mWMSInspireMetadataUrl</tabstop>
-  <tabstop>mWMSInspireMetadataUrlType</tabstop>
   <tabstop>pbnLaunchOWSChecker</tabstop>
   <tabstop>teOWSChecker</tabstop>
-  <tabstop>mAutoTransaction</tabstop>
-  <tabstop>mEvaluateDefaultValues</tabstop>
  </tabstops>
  <resources>
   <include location="../../images/images.qrc"/>

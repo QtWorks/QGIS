@@ -16,7 +16,6 @@
 *                                                                         *
 ***************************************************************************
 """
-from builtins import range
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -47,13 +46,13 @@ class FixedTablePanel(BASE, WIDGET):
 
         self.param = param
         self.table = []
-        for i in range(param.numRows):
+        for i in range(param.numberRows()):
             self.table.append(list())
-            for j in range(len(param.cols)):
+            for j in range(len(param.headers())):
                 self.table[i].append('0')
 
         self.leText.setText(
-            self.tr('Fixed table %dx%d' % (param.numRows, len(param.cols))))
+            self.tr('Fixed table {0}x{1}').format(param.numberRows(), len(param.headers())))
 
         self.btnSelect.clicked.connect(self.showFixedTableDialog)
 
@@ -63,5 +62,5 @@ class FixedTablePanel(BASE, WIDGET):
         if dlg.rettable is not None:
             self.table = dlg.rettable
 
-        self.leText.setText(self.tr('Fixed table %dx%d' % (
-            len(self.table), len(self.param.cols))))
+        self.leText.setText(self.tr('Fixed table {0}x{1}').format(
+            len(self.table), len(self.param.headers())))

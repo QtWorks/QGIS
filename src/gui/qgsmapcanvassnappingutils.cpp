@@ -20,15 +20,16 @@
 #include <QApplication>
 #include <QProgressDialog>
 
-QgsMapCanvasSnappingUtils::QgsMapCanvasSnappingUtils( QgsMapCanvas* canvas, QObject* parent )
-    : QgsSnappingUtils( parent )
-    , mCanvas( canvas )
-    , mProgress( nullptr )
+QgsMapCanvasSnappingUtils::QgsMapCanvasSnappingUtils( QgsMapCanvas *canvas, QObject *parent )
+  : QgsSnappingUtils( parent )
+  , mCanvas( canvas )
+
 {
-  connect( canvas, SIGNAL( extentsChanged() ), this, SLOT( canvasMapSettingsChanged() ) );
-  connect( canvas, SIGNAL( destinationCrsChanged() ), this, SLOT( canvasMapSettingsChanged() ) );
-  connect( canvas, SIGNAL( layersChanged() ), this, SLOT( canvasMapSettingsChanged() ) );
-  connect( canvas, SIGNAL( currentLayerChanged( QgsMapLayer* ) ), this, SLOT( canvasCurrentLayerChanged() ) );
+  connect( canvas, &QgsMapCanvas::extentsChanged, this, &QgsMapCanvasSnappingUtils::canvasMapSettingsChanged );
+  connect( canvas, &QgsMapCanvas::destinationCrsChanged, this, &QgsMapCanvasSnappingUtils::canvasMapSettingsChanged );
+  connect( canvas, &QgsMapCanvas::layersChanged, this, &QgsMapCanvasSnappingUtils::canvasMapSettingsChanged );
+  connect( canvas, &QgsMapCanvas::currentLayerChanged, this, &QgsMapCanvasSnappingUtils::canvasCurrentLayerChanged );
+  connect( canvas, &QgsMapCanvas::transformContextChanged, this, &QgsMapCanvasSnappingUtils::canvasTransformContextChanged );
   canvasMapSettingsChanged();
   canvasCurrentLayerChanged();
 }
@@ -38,9 +39,16 @@ void QgsMapCanvasSnappingUtils::canvasMapSettingsChanged()
   setMapSettings( mCanvas->mapSettings() );
 }
 
+void QgsMapCanvasSnappingUtils::canvasTransformContextChanged()
+{
+  // can't trust any of our previous locators, as we don't know exactly how datum transform changes would affect these
+  clearAllLocators();
+  setMapSettings( mCanvas->mapSettings() );
+}
+
 void QgsMapCanvasSnappingUtils::canvasCurrentLayerChanged()
 {
-  setCurrentLayer( qobject_cast<QgsVectorLayer*>( mCanvas->currentLayer() ) );
+  setCurrentLayer( qobject_cast<QgsVectorLayer *>( mCanvas->currentLayer() ) );
 }
 
 void QgsMapCanvasSnappingUtils::prepareIndexStarting( int count )

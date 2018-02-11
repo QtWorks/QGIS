@@ -19,22 +19,22 @@
 #include "qgslogger.h"
 #include "qgsmessagelog.h"
 #include "qgsnetworkaccessmanager.h"
+#include "qgsapplication.h"
 
 #include <QEventLoop>
 #include <QNetworkCacheMetaData>
 #include <QCryptographicHash> // just for testin file:// fake_qgis_http_endpoint hack
 
-QgsWfsRequest::QgsWfsRequest( const QString& theUri )
-    : mUri( theUri )
-    , mReply( nullptr )
-    , mErrorCode( QgsWfsRequest::NoError )
-    , mIsAborted( false )
-    , mForceRefresh( false )
-    , mTimedout( false )
-    , mGotNonEmptyResponse( false )
+QgsWfsRequest::QgsWfsRequest( const QString &uri )
+  : mUri( uri )
+  , mErrorCode( QgsWfsRequest::NoError )
+  , mIsAborted( false )
+  , mForceRefresh( false )
+  , mTimedout( false )
+  , mGotNonEmptyResponse( false )
 {
-  QgsDebugMsg( "theUri = " + theUri );
-  connect( QgsNetworkAccessManager::instance(), SIGNAL( requestTimedOut( QNetworkReply* ) ), this, SLOT( requestTimedOut( QNetworkReply* ) ) );
+  QgsDebugMsg( "theUri = " + uri );
+  connect( QgsNetworkAccessManager::instance(), &QgsNetworkAccessManager::requestTimedOut, this, &QgsWfsRequest::requestTimedOut );
 }
 
 QgsWfsRequest::~QgsWfsRequest()
@@ -42,13 +42,13 @@ QgsWfsRequest::~QgsWfsRequest()
   abort();
 }
 
-void QgsWfsRequest::requestTimedOut( QNetworkReply* reply )
+void QgsWfsRequest::requestTimedOut( QNetworkReply *reply )
 {
   if ( reply == mReply )
     mTimedout = true;
 }
 
-bool QgsWfsRequest::sendGET( const QUrl& url, bool synchronous, bool forceRefresh, bool cache )
+bool QgsWfsRequest::sendGET( const QUrl &url, bool synchronous, bool forceRefresh, bool cache )
 {
   abort(); // cancel previous
   mIsAborted = false;
@@ -61,14 +61,14 @@ bool QgsWfsRequest::sendGET( const QUrl& url, bool synchronous, bool forceRefres
   mResponse.clear();
 
   QUrl modifiedUrl( url );
-  if ( modifiedUrl.toString().contains( "fake_qgis_http_endpoint" ) )
+  if ( modifiedUrl.toString().contains( QLatin1String( "fake_qgis_http_endpoint" ) ) )
   {
-    // Just for testing with local files instead of http:// ressources
+    // Just for testing with local files instead of http:// resources
     QString modifiedUrlString = modifiedUrl.toString();
     // Qt5 does URL encoding from some reason (of the FILTER parameter for example)
     modifiedUrlString = QUrl::fromPercentEncoding( modifiedUrlString.toUtf8() );
     QgsDebugMsg( QString( "Get %1" ).arg( modifiedUrlString ) );
-    modifiedUrlString = modifiedUrlString.mid( QString( "http://" ).size() );
+    modifiedUrlString = modifiedUrlString.mid( QStringLiteral( "http://" ).size() );
     QString args = modifiedUrlString.mid( modifiedUrlString.indexOf( '?' ) );
     if ( modifiedUrlString.size() > 256 )
     {
@@ -76,16 +76,16 @@ bool QgsWfsRequest::sendGET( const QUrl& url, bool synchronous, bool forceRefres
     }
     else
     {
-      args.replace( "?", "_" );
-      args.replace( "&", "_" );
-      args.replace( "<", "_" );
-      args.replace( ">", "_" );
-      args.replace( "'", "_" );
-      args.replace( "\"", "_" );
-      args.replace( " ", "_" );
-      args.replace( ":", "_" );
-      args.replace( "/", "_" );
-      args.replace( "\n", "_" );
+      args.replace( QLatin1String( "?" ), QLatin1String( "_" ) );
+      args.replace( QLatin1String( "&" ), QLatin1String( "_" ) );
+      args.replace( QLatin1String( "<" ), QLatin1String( "_" ) );
+      args.replace( QLatin1String( ">" ), QLatin1String( "_" ) );
+      args.replace( QLatin1String( "'" ), QLatin1String( "_" ) );
+      args.replace( QLatin1String( "\"" ), QLatin1String( "_" ) );
+      args.replace( QLatin1String( " " ), QLatin1String( "_" ) );
+      args.replace( QLatin1String( ":" ), QLatin1String( "_" ) );
+      args.replace( QLatin1String( "/" ), QLatin1String( "_" ) );
+      args.replace( QLatin1String( "\n" ), QLatin1String( "_" ) );
     }
 #ifdef Q_OS_WIN
     // Passing "urls" like "http://c:/path" to QUrl 'eats' the : after c,
@@ -96,9 +96,11 @@ bool QgsWfsRequest::sendGET( const QUrl& url, bool synchronous, bool forceRefres
     }
 #endif
     modifiedUrlString = modifiedUrlString.mid( 0, modifiedUrlString.indexOf( '?' ) ) + args;
-    QgsDebugMsg( QString( "Get %1 (after laundering)" ).arg( modifiedUrlString ) );
+    QgsDebugMsg( QStringLiteral( "Get %1 (after laundering)" ).arg( modifiedUrlString ) );
     modifiedUrl = QUrl::fromLocalFile( modifiedUrlString );
   }
+
+  QgsDebugMsgLevel( QStringLiteral( "Calling: %1" ).arg( modifiedUrl.toDisplayString( ) ), 4 );
 
   QNetworkRequest request( modifiedUrl );
   if ( !mUri.auth().setAuthorization( request ) )
@@ -123,20 +125,20 @@ bool QgsWfsRequest::sendGET( const QUrl& url, bool synchronous, bool forceRefres
     QgsMessageLog::logMessage( mErrorMessage, tr( "WFS" ) );
     return false;
   }
-  connect( mReply, SIGNAL( finished() ), this, SLOT( replyFinished() ) );
-  connect( mReply, SIGNAL( downloadProgress( qint64, qint64 ) ), this, SLOT( replyProgress( qint64, qint64 ) ) );
+  connect( mReply, &QNetworkReply::finished, this, &QgsWfsRequest::replyFinished );
+  connect( mReply, &QNetworkReply::downloadProgress, this, &QgsWfsRequest::replyProgress );
 
   if ( !synchronous )
     return true;
 
   QEventLoop loop;
-  connect( this, SIGNAL( downloadFinished() ), &loop, SLOT( quit() ) );
+  connect( this, &QgsWfsRequest::downloadFinished, &loop, &QEventLoop::quit );
   loop.exec( QEventLoop::ExcludeUserInputEvents );
 
   return mErrorMessage.isEmpty();
 }
 
-bool QgsWfsRequest::sendPOST( const QUrl& url, const QString& contentTypeHeader, const QByteArray& data )
+bool QgsWfsRequest::sendPOST( const QUrl &url, const QString &contentTypeHeader, const QByteArray &data )
 {
   abort(); // cancel previous
   mIsAborted = false;
@@ -152,7 +154,7 @@ bool QgsWfsRequest::sendPOST( const QUrl& url, const QString& contentTypeHeader,
   {
     // Hack for testing purposes
     QUrl modifiedUrl( url );
-    modifiedUrl.addQueryItem( "POSTDATA", QString::fromUtf8( data ) );
+    modifiedUrl.addQueryItem( QStringLiteral( "POSTDATA" ), QString::fromUtf8( data ) );
     return sendGET( modifiedUrl, true, true, false );
   }
 
@@ -174,11 +176,11 @@ bool QgsWfsRequest::sendPOST( const QUrl& url, const QString& contentTypeHeader,
     QgsMessageLog::logMessage( mErrorMessage, tr( "WFS" ) );
     return false;
   }
-  connect( mReply, SIGNAL( finished() ), this, SLOT( replyFinished() ) );
-  connect( mReply, SIGNAL( downloadProgress( qint64, qint64 ) ), this, SLOT( replyProgress( qint64, qint64 ) ) );
+  connect( mReply, &QNetworkReply::finished, this, &QgsWfsRequest::replyFinished );
+  connect( mReply, &QNetworkReply::downloadProgress, this, &QgsWfsRequest::replyProgress );
 
   QEventLoop loop;
-  connect( this, SIGNAL( downloadFinished() ), &loop, SLOT( quit() ) );
+  connect( this, &QgsWfsRequest::downloadFinished, &loop, &QEventLoop::quit );
   loop.exec( QEventLoop::ExcludeUserInputEvents );
 
   return mErrorMessage.isEmpty();
@@ -223,13 +225,13 @@ void QgsWfsRequest::replyFinished()
   {
     if ( mReply->error() == QNetworkReply::NoError )
     {
-      QgsDebugMsg( "reply ok" );
+      QgsDebugMsg( "reply OK" );
       QVariant redirect = mReply->attribute( QNetworkRequest::RedirectionTargetAttribute );
       if ( !redirect.isNull() )
       {
         QgsDebugMsg( "Request redirected." );
 
-        const QUrl& toUrl = redirect.toUrl();
+        const QUrl &toUrl = redirect.toUrl();
         mReply->request();
         if ( toUrl == mReply->url() )
         {
@@ -266,8 +268,8 @@ void QgsWfsRequest::replyFinished()
             emit downloadFinished();
             return;
           }
-          connect( mReply, SIGNAL( finished() ), this, SLOT( replyFinished() ) );
-          connect( mReply, SIGNAL( downloadProgress( qint64, qint64 ) ), this, SLOT( replyProgress( qint64, qint64 ) ) );
+          connect( mReply, &QNetworkReply::finished, this, &QgsWfsRequest::replyFinished );
+          connect( mReply, &QNetworkReply::downloadProgress, this, &QgsWfsRequest::replyProgress );
           return;
         }
       }

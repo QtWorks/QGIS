@@ -27,9 +27,10 @@
 
 #include <QWidget>
 
-QgsWCSSourceSelect::QgsWCSSourceSelect( QWidget * parent, Qt::WindowFlags fl, bool managerMode, bool embeddedMode )
-    : QgsOWSSourceSelect( "WCS", parent, fl, managerMode, embeddedMode )
+QgsWCSSourceSelect::QgsWCSSourceSelect( QWidget *parent, Qt::WindowFlags fl, QgsProviderRegistry::WidgetMode widgetMode )
+  : QgsOWSSourceSelect( QStringLiteral( "WCS" ), parent, fl, widgetMode )
 {
+
   // Hide irrelevant widgets
   mWMSGroupBox->hide();
   mLayersTab->layout()->removeWidget( mWMSGroupBox );
@@ -39,10 +40,8 @@ QgsWCSSourceSelect::QgsWCSSourceSelect( QWidget * parent, Qt::WindowFlags fl, bo
   mAddDefaultButton->hide();
 
   mLayersTreeWidget->setSelectionMode( QAbstractItemView::SingleSelection );
-}
 
-QgsWCSSourceSelect::~QgsWCSSourceSelect()
-{
+  connect( buttonBox, &QDialogButtonBox::helpRequested, this, &QgsWCSSourceSelect::showHelp );
 }
 
 void QgsWCSSourceSelect::populateLayerList()
@@ -53,7 +52,7 @@ void QgsWCSSourceSelect::populateLayerList()
 
   QgsDataSourceUri uri = mUri;
   QString cache = QgsNetworkAccessManager::cacheLoadControlName( selectedCacheLoadControl() );
-  uri.setParam( "cache", cache );
+  uri.setParam( QStringLiteral( "cache" ), cache );
 
   mCapabilities.setUri( uri );
 
@@ -88,7 +87,7 @@ void QgsWCSSourceSelect::populateLayerList()
     lItem->setData( 0, Qt::UserRole + 1, "" );
 
     // Make only leaves selectable
-    if ( !coverageParents.keys( coverage->orderId ).isEmpty() )
+    if ( coverageParents.contains( coverage->orderId ) )
     {
       lItem->setFlags( Qt::ItemIsEnabled );
     }
@@ -112,14 +111,14 @@ QString QgsWCSSourceSelect::selectedIdentifier()
   return identifier;
 }
 
-void QgsWCSSourceSelect::addClicked()
+void QgsWCSSourceSelect::addButtonClicked()
 {
   QgsDataSourceUri uri = mUri;
 
   QString identifier = selectedIdentifier();
   if ( identifier.isEmpty() ) { return; }
 
-  uri.setParam( "identifier", identifier );
+  uri.setParam( QStringLiteral( "identifier" ), identifier );
 
   // Set crs only if necessary (multiple offered), so that we can decide in the
   // provider if WCS 1.0 with RESPONSE_CRS has to be used.  Not perfect, they can
@@ -128,30 +127,31 @@ void QgsWCSSourceSelect::addClicked()
   //       without that param user is asked for CRS
   //if ( selectedLayersCRSs().size() > 1 )
   //{
-  uri.setParam( "crs", selectedCrs() );
+  uri.setParam( QStringLiteral( "crs" ), selectedCrs() );
   //}
 
   QgsDebugMsg( "selectedFormat = " +  selectedFormat() );
   if ( !selectedFormat().isEmpty() )
   {
-    uri.setParam( "format", selectedFormat() );
+    uri.setParam( QStringLiteral( "format" ), selectedFormat() );
   }
 
   QgsDebugMsg( "selectedTime = " +  selectedTime() );
   if ( !selectedTime().isEmpty() )
   {
-    uri.setParam( "time", selectedTime() );
+    uri.setParam( QStringLiteral( "time" ), selectedTime() );
   }
 
   QString cache;
   QgsDebugMsg( QString( "selectedCacheLoadControl = %1" ).arg( selectedCacheLoadControl() ) );
   cache = QgsNetworkAccessManager::cacheLoadControlName( selectedCacheLoadControl() );
-  uri.setParam( "cache", cache );
+  uri.setParam( QStringLiteral( "cache" ), cache );
 
-  emit addRasterLayer( uri.encodedUri(), identifier, "wcs" );
+  emit addRasterLayer( uri.encodedUri(), identifier, QStringLiteral( "wcs" ) );
 }
 
-void QgsWCSSourceSelect::on_mLayersTreeWidget_itemSelectionChanged()
+
+void QgsWCSSourceSelect::mLayersTreeWidget_itemSelectionChanged()
 {
 
   QString identifier = selectedIdentifier();
@@ -167,7 +167,7 @@ void QgsWCSSourceSelect::on_mLayersTreeWidget_itemSelectionChanged()
 
   updateButtons();
 
-  mAddButton->setEnabled( true );
+  emit enableButtons( true );
 }
 
 void QgsWCSSourceSelect::updateButtons()
@@ -185,20 +185,20 @@ void QgsWCSSourceSelect::updateButtons()
     }
   }
 
-  mAddButton->setEnabled( !mLayersTreeWidget->selectedItems().isEmpty() && !selectedCrs().isEmpty() && !selectedFormat().isEmpty() );
+  emit enableButtons( !mLayersTreeWidget->selectedItems().isEmpty() && !selectedCrs().isEmpty() && !selectedFormat().isEmpty() );
 }
 
 QList<QgsWCSSourceSelect::SupportedFormat> QgsWCSSourceSelect::providerFormats()
 {
   QList<SupportedFormat> formats;
 
-  QMap<QString, QString> mimes = QgsWcsProvider::supportedMimes();
-  Q_FOREACH ( const QString& mime, mimes.keys() )
+  const QMap<QString, QString> mimes = QgsWcsProvider::supportedMimes();
+  for ( auto it = mimes.constBegin(); it != mimes.constEnd(); ++it )
   {
-    SupportedFormat format = { mime, mimes.value( mime ) };
+    SupportedFormat format = { it.key(), it.value() };
 
     // prefer tiff
-    if ( mime == "image/tiff" )
+    if ( it.key() == QLatin1String( "image/tiff" ) )
     {
       formats.prepend( format );
     }
@@ -252,4 +252,10 @@ QStringList QgsWCSSourceSelect::selectedLayersTimes()
 void QgsWCSSourceSelect::enableLayersForCrs( QTreeWidgetItem * )
 {
   // TODO: I am not convinced to disable layers according to selected CRS
+}
+
+
+void QgsWCSSourceSelect::showHelp()
+{
+  QgsHelp::openHelp( QStringLiteral( "working_with_ogc/ogc_client_support.html" ) );
 }

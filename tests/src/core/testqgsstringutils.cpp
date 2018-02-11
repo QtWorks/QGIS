@@ -17,7 +17,7 @@
 
 #include "qgsstringutils.h"
 #include <QObject>
-#include <QtTest/QtTest>
+#include "qgstest.h"
 
 class TestQgsStringUtils : public QObject
 {
@@ -136,7 +136,7 @@ void TestQgsStringUtils::insertLinks()
   QVERIFY( found );
   QCOMPARE( QgsStringUtils::insertLinks( QString( "this http://north-road.com is a link" ), &found ), QString( "this <a href=\"http://north-road.com\">http://north-road.com</a> is a link" ) );
   QVERIFY( found );
-  QCOMPARE( QgsStringUtils::insertLinks( QString( "this http://north-road.com is a link, so is http://qgis.org, ok?" ), &found ), QString( "this <a href=\"http://north-road.com\">http://north-road.com</a> is a link, so is <a href=\"http://qgis.org\">http://qgis.org</a>, ok?" ) );
+  QCOMPARE( QgsStringUtils::insertLinks( QString( "this http://north-road.com is a link, so is http://qgis.org, OK?" ), &found ), QString( "this <a href=\"http://north-road.com\">http://north-road.com</a> is a link, so is <a href=\"http://qgis.org\">http://qgis.org</a>, OK?" ) );
   QVERIFY( found );
   QCOMPARE( QgsStringUtils::insertLinks( QString( "this north-road.com might not be a link" ), &found ), QString( "this north-road.com might not be a link" ) );
   QVERIFY( !found );
@@ -155,5 +155,5 @@ void TestQgsStringUtils::insertLinks()
 }
 
 
-QTEST_MAIN( TestQgsStringUtils )
+QGSTEST_MAIN( TestQgsStringUtils )
 #include "testqgsstringutils.moc"

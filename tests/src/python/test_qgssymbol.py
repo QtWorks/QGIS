@@ -31,14 +31,15 @@ from qgis.PyQt.QtCore import QDir
 from qgis.PyQt.QtGui import QImage, QColor, QPainter
 
 from qgis.core import (QgsGeometry,
-                       QgsSymbol,
                        QgsMapUnitScale,
                        QgsMarkerSymbol,
+                       QgsMultiPolygon,
+                       QgsPolygon,
+                       QgsLineString,
                        QgsFillSymbol,
                        QgsLineSymbol,
                        QgsRenderContext,
                        QgsFeature,
-                       Qgis,
                        QgsMapSettings,
                        QgsRenderChecker,
                        QgsSimpleMarkerSymbolLayer,
@@ -58,9 +59,9 @@ class TestQgsSymbol(unittest.TestCase):
 
     def setUp(self):
         #Create some simple symbols
-        self.fill_symbol = QgsFillSymbol.createSimple({'color': '#ffffff'})
+        self.fill_symbol = QgsFillSymbol.createSimple({'color': '#ffffff', 'outline_color': 'black'})
         self.line_symbol = QgsLineSymbol.createSimple({'color': '#ffffff', 'line_width': '3'})
-        self.marker_symbol = QgsMarkerSymbol.createSimple({'color': '#ffffff', 'size': '3'})
+        self.marker_symbol = QgsMarkerSymbol.createSimple({'color': '#ffffff', 'size': '3', 'outline_color': 'black'})
         self.report = "<h1>Python QgsSymbol Tests</h1>\n"
 
     def tearDown(self):
@@ -71,6 +72,11 @@ class TestQgsSymbol(unittest.TestCase):
     def testGeometryRendering(self):
         '''Tests rendering a bunch of different geometries, including bad/odd geometries.'''
 
+        empty_multipolygon = QgsMultiPolygon()
+        empty_multipolygon.addGeometry(QgsPolygon())
+        empty_polygon = QgsPolygon()
+        empty_linestring = QgsLineString()
+
         tests = [{'name': 'Point',
                   'wkt': 'Point (1 2)',
                   'reference_image': 'point'},
@@ -80,15 +86,24 @@ class TestQgsSymbol(unittest.TestCase):
                  {'name': 'LineString',
                   'wkt': 'LineString (0 0,3 4,4 3)',
                   'reference_image': 'linestring'},
+                 {'name': 'Empty LineString',
+                  'geom': QgsGeometry(empty_linestring),
+                  'reference_image': 'empty'},
                  {'name': 'MultiLineString',
                   'wkt': 'MultiLineString ((0 0, 1 0, 1 1, 2 1, 2 0), (3 1, 5 1, 5 0, 6 0))',
                   'reference_image': 'multilinestring'},
                  {'name': 'Polygon',
                   'wkt': 'Polygon ((0 0, 10 0, 10 10, 0 10, 0 0),(5 5, 7 5, 7 7 , 5 7, 5 5))',
                   'reference_image': 'polygon'},
+                 {'name': 'Empty Polygon',
+                  'geom': QgsGeometry(empty_polygon),
+                  'reference_image': 'empty'},
                  {'name': 'MultiPolygon',
                   'wkt': 'MultiPolygon (((0 0, 1 0, 1 1, 2 1, 2 2, 0 2, 0 0)),((4 0, 5 0, 5 2, 3 2, 3 1, 4 1, 4 0)))',
                   'reference_image': 'multipolygon'},
+                 {'name': 'Empty MultiPolygon',
+                  'geom': QgsGeometry(empty_multipolygon),
+                  'reference_image': 'empty'},
                  {'name': 'CircularString',
                   'wkt': 'CIRCULARSTRING(268 415,227 505,227 406)',
                   'reference_image': 'circular_string'},
@@ -106,8 +121,16 @@ class TestQgsSymbol(unittest.TestCase):
                   'reference_image': 'curve_polygon_no_arc'}]
 
         for test in tests:
-            geom = QgsGeometry.fromWkt(test['wkt'])
-            assert geom and not geom.isEmpty(), 'Could not create geometry {}'.format(test['wkt'])
+
+            def get_geom():
+                if 'geom' not in test:
+                    geom = QgsGeometry.fromWkt(test['wkt'])
+                    assert geom and not geom.isNull(), 'Could not create geometry {}'.format(test['wkt'])
+                else:
+                    geom = test['geom']
+                return geom
+
+            geom = get_geom()
             rendered_image = self.renderGeometry(geom)
             assert self.imageCheck(test['name'], test['reference_image'], rendered_image)
 
@@ -115,19 +138,19 @@ class TestQgsSymbol(unittest.TestCase):
             #z and m dimensions. This tests that presence of the dimensions does not affect rendering
 
             #test with Z
-            geom_z = QgsGeometry.fromWkt(test['wkt'])
-            geom_z.geometry().addZValue(5)
+            geom_z = get_geom()
+            geom_z.get().addZValue(5)
             rendered_image = self.renderGeometry(geom_z)
             assert self.imageCheck(test['name'] + 'Z', test['reference_image'], rendered_image)
 
             #test with ZM
-            geom_z.geometry().addMValue(15)
+            geom_z.get().addMValue(15)
             rendered_image = self.renderGeometry(geom_z)
             assert self.imageCheck(test['name'] + 'ZM', test['reference_image'], rendered_image)
 
             #test with M
-            geom_m = QgsGeometry.fromWkt(test['wkt'])
-            geom_m.geometry().addMValue(15)
+            geom_m = get_geom()
+            geom_m.get().addMValue(15)
             rendered_image = self.renderGeometry(geom_m)
             assert self.imageCheck(test['name'] + 'M', test['reference_image'], rendered_image)
 
@@ -139,12 +162,12 @@ class TestQgsSymbol(unittest.TestCase):
 
         painter = QPainter()
         ms = QgsMapSettings()
-        extent = geom.geometry().boundingBox()
+        extent = geom.get().boundingBox()
         # buffer extent by 10%
         if extent.width() > 0:
-            extent = extent.buffer((extent.height() + extent.width()) / 20.0)
+            extent = extent.buffered((extent.height() + extent.width()) / 20.0)
         else:
-            extent = extent.buffer(10)
+            extent = extent.buffered(10)
 
         ms.setExtent(extent)
         ms.setOutputSize(image.size())
@@ -208,15 +231,15 @@ class TestQgsMarkerSymbol(unittest.TestCase):
         # create a marker symbol with a single layer
         markerSymbol = QgsMarkerSymbol()
         markerSymbol.deleteSymbolLayer(0)
-        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), borderColor=QColor(0, 255, 0), size=10))
+        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), strokeColor=QColor(0, 255, 0), size=10))
         self.assertEqual(markerSymbol.size(), 10)
         markerSymbol.setSize(20)
         self.assertEqual(markerSymbol.size(), 20)
         self.assertEqual(markerSymbol.symbolLayer(0).size(), 20)
 
         # add additional layers
-        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), borderColor=QColor(0, 255, 0), size=10))
-        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), borderColor=QColor(0, 255, 0), size=30))
+        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), strokeColor=QColor(0, 255, 0), size=10))
+        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), strokeColor=QColor(0, 255, 0), size=30))
         self.assertEqual(markerSymbol.size(), 30)
         markerSymbol.setSize(3)
         self.assertEqual(markerSymbol.size(), 3)
@@ -231,15 +254,15 @@ class TestQgsMarkerSymbol(unittest.TestCase):
         # create a marker symbol with a single layer
         markerSymbol = QgsMarkerSymbol()
         markerSymbol.deleteSymbolLayer(0)
-        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), borderColor=QColor(0, 255, 0), size=10, angle=90))
+        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), strokeColor=QColor(0, 255, 0), size=10, angle=90))
         self.assertEqual(markerSymbol.angle(), 90)
         markerSymbol.setAngle(100)
         self.assertEqual(markerSymbol.angle(), 100)
         self.assertEqual(markerSymbol.symbolLayer(0).angle(), 100)
 
         # add additional layers
-        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), borderColor=QColor(0, 255, 0), size=10, angle=130))
-        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), borderColor=QColor(0, 255, 0), size=10, angle=150))
+        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), strokeColor=QColor(0, 255, 0), size=10, angle=130))
+        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), strokeColor=QColor(0, 255, 0), size=10, angle=150))
         # should take first layer's angle
         self.assertEqual(markerSymbol.angle(), 100)
         markerSymbol.setAngle(10)
@@ -255,15 +278,15 @@ class TestQgsMarkerSymbol(unittest.TestCase):
         # create a marker symbol with a single layer
         markerSymbol = QgsMarkerSymbol()
         markerSymbol.deleteSymbolLayer(0)
-        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), borderColor=QColor(0, 255, 0), size=10))
+        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), strokeColor=QColor(0, 255, 0), size=10))
         self.assertEqual(markerSymbol.sizeUnit(), QgsUnitTypes.RenderMillimeters)
         markerSymbol.setSizeUnit(QgsUnitTypes.RenderMapUnits)
         self.assertEqual(markerSymbol.sizeUnit(), QgsUnitTypes.RenderMapUnits)
         self.assertEqual(markerSymbol.symbolLayer(0).sizeUnit(), QgsUnitTypes.RenderMapUnits)
 
         # add additional layers
-        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), borderColor=QColor(0, 255, 0), size=10))
-        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), borderColor=QColor(0, 255, 0), size=30))
+        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), strokeColor=QColor(0, 255, 0), size=10))
+        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), strokeColor=QColor(0, 255, 0), size=30))
         # should now be mixed size units
         self.assertEqual(markerSymbol.sizeUnit(), QgsUnitTypes.RenderUnknownUnit)
         markerSymbol.setSizeUnit(QgsUnitTypes.RenderPixels)
@@ -279,7 +302,7 @@ class TestQgsMarkerSymbol(unittest.TestCase):
         # create a marker symbol with a single layer
         markerSymbol = QgsMarkerSymbol()
         markerSymbol.deleteSymbolLayer(0)
-        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), borderColor=QColor(0, 255, 0), size=10))
+        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), strokeColor=QColor(0, 255, 0), size=10))
         markerSymbol.symbolLayer(0).setSizeMapUnitScale(QgsMapUnitScale(10000, 20000))
         self.assertEqual(markerSymbol.sizeMapUnitScale(), QgsMapUnitScale(10000, 20000))
         markerSymbol.setSizeMapUnitScale(QgsMapUnitScale(1000, 2000))
@@ -287,8 +310,8 @@ class TestQgsMarkerSymbol(unittest.TestCase):
         self.assertEqual(markerSymbol.symbolLayer(0).sizeMapUnitScale(), QgsMapUnitScale(1000, 2000))
 
         # add additional layers
-        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), borderColor=QColor(0, 255, 0), size=10))
-        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), borderColor=QColor(0, 255, 0), size=30))
+        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), strokeColor=QColor(0, 255, 0), size=10))
+        markerSymbol.appendSymbolLayer(QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Star, color=QColor(255, 0, 0), strokeColor=QColor(0, 255, 0), size=30))
         # should take first layer's map unit scale
         self.assertEqual(markerSymbol.sizeMapUnitScale(), QgsMapUnitScale(1000, 2000))
         markerSymbol.setSizeMapUnitScale(QgsMapUnitScale(3000, 4000))

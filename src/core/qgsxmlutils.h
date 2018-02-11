@@ -20,10 +20,12 @@ class QDomElement;
 
 class QgsRectangle;
 
+#include "qgis_core.h"
 #include "qgis.h"
 #include "qgsunittypes.h"
 
-/** \ingroup core
+/**
+ * \ingroup core
  * Assorted helper methods for reading and writing chunks of XML
  */
 class CORE_EXPORT QgsXmlUtils
@@ -32,26 +34,46 @@ class CORE_EXPORT QgsXmlUtils
 
     /* reading */
 
-    /** Decodes a distance unit from a DOM element.
-     * @param element DOM element to decode
-     * @returns distance units
-     * @see writeMapUnits()
+    /**
+     * Decodes a distance unit from a DOM element.
+     * \param element DOM element to decode
+     * \returns distance units
+     * \see writeMapUnits()
      */
-    static QgsUnitTypes::DistanceUnit readMapUnits( const QDomElement& element );
+    static QgsUnitTypes::DistanceUnit readMapUnits( const QDomElement &element );
 
-    static QgsRectangle readRectangle( const QDomElement& element );
+    static QgsRectangle readRectangle( const QDomElement &element );
 
     /* writing */
 
-    /** Encodes a distance unit to a DOM element.
-     * @param units units to encode
-     * @param doc DOM document
-     * @returns element containing encoded units
-     * @see readMapUnits()
+    /**
+     * Encodes a distance unit to a DOM element.
+     * \param units units to encode
+     * \param doc DOM document
+     * \returns element containing encoded units
+     * \see readMapUnits()
      */
-    static QDomElement writeMapUnits( QgsUnitTypes::DistanceUnit units, QDomDocument& doc );
+    static QDomElement writeMapUnits( QgsUnitTypes::DistanceUnit units, QDomDocument &doc );
 
-    static QDomElement writeRectangle( const QgsRectangle& rect, QDomDocument& doc );
+    static QDomElement writeRectangle( const QgsRectangle &rect, QDomDocument &doc );
+
+    /**
+     * Write a QVariant to a QDomElement.
+     *
+     * Supported types are
+     *
+     * - QVariant::Map
+     * - QVariant::Int
+     * - QVariant::Double
+     * - QVariant::String
+     *
+     */
+    static QDomElement writeVariant( const QVariant &value, QDomDocument &doc );
+
+    /**
+     * Read a QVariant from a QDomElement.
+     */
+    static QVariant readVariant( const QDomElement &element );
 };
 
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 ###########################################################################
 #    addcopyright.sh
 #    ---------------------
@@ -43,7 +43,7 @@ for i in $FILES; do
 		author=volayaf
 		;;
 
-	src/app/gps/qwtpolar-*|src/app/qtmain_android.cpp|src/core/gps/qextserialport/*|src/astyle/*|python/pyspatialite/*)
+	src/app/gps/qwtpolar-*|src/app/qtmain_android.cpp|src/core/gps/qextserialport/*|lib/astyle/*)
 		# Skip third party files
                 echo $f skipped
                 continue

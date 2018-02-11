@@ -25,8 +25,8 @@ from .connector import VLayerRegistry, getQueryGeometryName
 from .plugin import LVectorTable
 from ..plugin import DbError
 
-from qgis.PyQt.QtCore import QUrl, QTime, QTemporaryFile
-from qgis.core import Qgis, QgsVectorLayer, QgsWkbTypes, QgsWkbTypes
+from qgis.PyQt.QtCore import QTime, QTemporaryFile
+from qgis.core import QgsVectorLayer, QgsWkbTypes, QgsVirtualLayerDefinition
 
 
 class LTableDataModel(TableDataModel):
@@ -49,7 +49,7 @@ class LTableDataModel(TableDataModel):
             a = f.attributes()
             # add the geometry type
             if f.hasGeometry():
-                a.append(QgsWkbTypes.displayString(Qgis.fromOldWkbType(f.geometry().wkbType())))
+                a.append(QgsWkbTypes.displayString(f.geometry().wkbType()))
             else:
                 a.append('None')
             self.resdata.append(a)
@@ -68,7 +68,6 @@ class LSqlResultModel(BaseTableModel):
 
     def __init__(self, db, sql, parent=None):
         # create a virtual layer with non-geometry results
-        q = QUrl.toPercentEncoding(sql)
         t = QTime()
         t.start()
 
@@ -77,7 +76,10 @@ class LSqlResultModel(BaseTableModel):
         tmp = tf.fileName()
         tf.close()
 
-        p = QgsVectorLayer("%s?query=%s" % (QUrl.fromLocalFile(tmp).toString(), q), "vv", "virtual")
+        df = QgsVirtualLayerDefinition()
+        df.setFilePath(tmp)
+        df.setQuery(sql)
+        p = QgsVectorLayer(df.toString(), "vv", "virtual")
         self._secs = t.elapsed() / 1000.0
 
         if not p.isValid():
@@ -98,7 +100,7 @@ class LSqlResultModel(BaseTableModel):
                 a = f.attributes()
                 if has_geometry:
                     if f.hasGeometry():
-                        a += [f.geometry().exportToWkt()]
+                        a += [f.geometry().asWkt()]
                     else:
                         a += [None]
                 data += [a]

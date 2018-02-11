@@ -1,8 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -e
 
-codepaths=$(echo python/{analysis,console,core,custom_widgets,gui,networkanalysis,plugins,pyplugin_installer,server,sip_helpers,testing} src/ tests/)
+codepaths=$(echo python/{analysis,console,core,custom_widgets,gui,plugins,pyplugin_installer,server,sip_helpers,testing} src/ tests/)
 repl=
 
 s=$(mktemp -t skipped.XXXX.log)

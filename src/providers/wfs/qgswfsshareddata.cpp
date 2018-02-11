@@ -13,7 +13,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#include <math.h> // M_PI
+#include <cmath> // M_PI
 
 #include "qgswfsconstants.h"
 #include "qgswfsshareddata.h"
@@ -26,8 +26,8 @@
 #include "qgsvectordataprovider.h"
 #include "qgsvectorfilewriter.h"
 #include "qgsproviderregistry.h"
-#include "qgsslconnect.h"
 #include "qgslogger.h"
+#include "qgsspatialiteutils.h"
 
 #include <cpl_vsi.h>
 #include <cpl_conv.h>
@@ -35,24 +35,22 @@
 
 #include <sqlite3.h>
 
-QgsWFSSharedData::QgsWFSSharedData( const QString& uri )
-    : mURI( uri )
-    , mSourceCRS( 0 )
-    , mCacheDataProvider( nullptr )
-    , mMaxFeatures( 0 )
-    , mMaxFeaturesWasSetFromDefaultForPaging( false )
-    , mHideProgressDialog( mURI.hideDownloadProgressDialog() )
-    , mDistinctSelect( false )
-    , mHasWarnedAboutMissingFeatureId( false )
-    , mGetFeatureEPSGDotHonoursEPSGOrder( false )
-    , mDownloader( nullptr )
-    , mDownloadFinished( false )
-    , mGenCounter( 0 )
-    , mFeatureCount( 0 )
-    , mFeatureCountExact( false )
-    , mGetFeatureHitsIssued( false )
-    , mTotalFeaturesAttemptedToBeCached( 0 )
-    , mTryFetchingOneFeature( false )
+QgsWFSSharedData::QgsWFSSharedData( const QString &uri )
+  : mURI( uri )
+  , mSourceCRS( 0 )
+  , mMaxFeatures( 0 )
+  , mMaxFeaturesWasSetFromDefaultForPaging( false )
+  , mHideProgressDialog( mURI.hideDownloadProgressDialog() )
+  , mDistinctSelect( false )
+  , mHasWarnedAboutMissingFeatureId( false )
+  , mGetFeatureEPSGDotHonoursEPSGOrder( false )
+  , mDownloadFinished( false )
+  , mGenCounter( 0 )
+  , mFeatureCount( 0 )
+  , mFeatureCountExact( false )
+  , mGetFeatureHitsIssued( false )
+  , mTotalFeaturesAttemptedToBeCached( 0 )
+  , mTryFetchingOneFeature( false )
 {
   // Needed because used by a signal
   qRegisterMetaType< QVector<QgsWFSFeatureGmlIdPair> >( "QVector<QgsWFSFeatureGmlIdPair>" );
@@ -70,8 +68,8 @@ QString QgsWFSSharedData::srsName() const
   QString srsName;
   if ( !mSourceCRS.authid().isEmpty() )
   {
-    if ( mWFSVersion.startsWith( "1.0" ) ||
-         !mSourceCRS.authid().startsWith( "EPSG:" ) ||
+    if ( mWFSVersion.startsWith( QLatin1String( "1.0" ) ) ||
+         !mSourceCRS.authid().startsWith( QLatin1String( "EPSG:" ) ) ||
          // For servers like Geomedia that advertize EPSG:XXXX in capabilities even in WFS 1.1 or 2.0
          mCaps.useEPSGColumnFormat )
     {
@@ -80,13 +78,13 @@ QString QgsWFSSharedData::srsName() const
     else
     {
       QStringList list = mSourceCRS.authid().split( ':' );
-      srsName = QString( "urn:ogc:def:crs:EPSG::%1" ).arg( list.last() );
+      srsName = QStringLiteral( "urn:ogc:def:crs:EPSG::%1" ).arg( list.last() );
     }
   }
   return srsName;
 }
 
-bool QgsWFSSharedData::computeFilter( QString& errorMsg )
+bool QgsWFSSharedData::computeFilter( QString &errorMsg )
 {
   errorMsg.clear();
   mWFSFilter.clear();
@@ -95,12 +93,12 @@ bool QgsWFSSharedData::computeFilter( QString& errorMsg )
   QgsOgcUtils::GMLVersion gmlVersion;
   QgsOgcUtils::FilterVersion filterVersion;
   bool honourAxisOrientation = false;
-  if ( mWFSVersion.startsWith( "1.0" ) )
+  if ( mWFSVersion.startsWith( QLatin1String( "1.0" ) ) )
   {
     gmlVersion = QgsOgcUtils::GML_2_1_2;
     filterVersion = QgsOgcUtils::FILTER_OGC_1_0;
   }
-  else if ( mWFSVersion.startsWith( "1.1" ) )
+  else if ( mWFSVersion.startsWith( QLatin1String( "1.1" ) ) )
   {
     honourAxisOrientation = !mURI.ignoreAxisOrientation();
     gmlVersion = QgsOgcUtils::GML_3_1_0;
@@ -117,25 +115,25 @@ bool QgsWFSSharedData::computeFilter( QString& errorMsg )
   {
     QgsSQLStatement sql( mURI.sql() );
 
-    const QgsSQLStatement::NodeSelect* select = dynamic_cast<const QgsSQLStatement::NodeSelect*>( sql.rootNode() );
+    const QgsSQLStatement::NodeSelect *select = dynamic_cast<const QgsSQLStatement::NodeSelect *>( sql.rootNode() );
     if ( !select )
     {
       // Makes Coverity happy, but cannot happen in practice
       QgsDebugMsg( "should not happen" );
       return false;
     }
-    QList<QgsSQLStatement::NodeColumnSorted*> orderBy = select->orderBy();
-    Q_FOREACH ( QgsSQLStatement::NodeColumnSorted* columnSorted, orderBy )
+    QList<QgsSQLStatement::NodeColumnSorted *> orderBy = select->orderBy();
+    Q_FOREACH ( QgsSQLStatement::NodeColumnSorted *columnSorted, orderBy )
     {
       if ( !mSortBy.isEmpty() )
-        mSortBy += ",";
+        mSortBy += QLatin1String( "," );
       mSortBy += columnSorted->column()->name();
       if ( !columnSorted->ascending() )
       {
-        if ( mWFSVersion.startsWith( "2.0" ) )
-          mSortBy += " DESC";
+        if ( mWFSVersion.startsWith( QLatin1String( "2.0" ) ) )
+          mSortBy += QLatin1String( " DESC" );
         else
-          mSortBy += " D";
+          mSortBy += QLatin1String( " D" );
       }
     }
 
@@ -195,20 +193,18 @@ bool QgsWFSSharedData::computeFilter( QString& errorMsg )
 }
 
 // We have an issue with GDAL 1.10 and older that is using spatialite_init() which is
-// incompatible with how the QGIS spatialite provider works.
+// incompatible with how the QGIS SpatiaLite provider works.
 // The symptom of the issue is the error message
 // 'Unable to Initialize SpatiaLite Metadata: no such function: InitSpatialMetadata'
 // So in that case we must use only QGIS functions to avoid the conflict
 // The difference is that in the QGIS way we have to create the template database
 // on disk, which is a slightly bit slower. But due to later caching, this is
 // not so a big deal.
-#if GDAL_VERSION_MAJOR >= 2 || GDAL_VERSION_MINOR >= 11
 #define USE_OGR_FOR_DB_CREATION
-#endif
 
 static QString quotedIdentifier( QString id )
 {
-  id.replace( '\"', "\"\"" );
+  id.replace( '\"', QLatin1String( "\"\"" ) );
   return id.prepend( '\"' ).append( '\"' );
 }
 
@@ -216,12 +212,12 @@ bool QgsWFSSharedData::createCache()
 {
   Q_ASSERT( mCacheDbname.isEmpty() );
 
-  static int tmpCounter = 0;
-  ++tmpCounter;
-  mCacheDbname =  QDir( QgsWFSUtils::acquireCacheDirectory() ).filePath( QString( "wfs_cache_%1.sqlite" ).arg( tmpCounter ) );
+  static int sTmpCounter = 0;
+  ++sTmpCounter;
+  mCacheDbname = QDir( QgsWFSUtils::acquireCacheDirectory() ).filePath( QStringLiteral( "wfs_cache_%1.sqlite" ).arg( sTmpCounter ) );
 
   QgsFields cacheFields;
-  Q_FOREACH ( const QgsField& field, mFields )
+  Q_FOREACH ( const QgsField &field, mFields )
   {
     QVariant::Type type = field.type();
     // Map DateTime to int64 milliseconds from epoch
@@ -234,55 +230,45 @@ bool QgsWFSSharedData::createCache()
     cacheFields.append( QgsField( field.name(), type, field.typeName() ) );
   }
   // Add some field for our internal use
-  cacheFields.append( QgsField( QgsWFSConstants::FIELD_GEN_COUNTER, QVariant::Int, "int" ) );
-  cacheFields.append( QgsField( QgsWFSConstants::FIELD_GMLID, QVariant::String, "string" ) );
-  cacheFields.append( QgsField( QgsWFSConstants::FIELD_HEXWKB_GEOM, QVariant::String, "string" ) );
+  cacheFields.append( QgsField( QgsWFSConstants::FIELD_GEN_COUNTER, QVariant::Int, QStringLiteral( "int" ) ) );
+  cacheFields.append( QgsField( QgsWFSConstants::FIELD_GMLID, QVariant::String, QStringLiteral( "string" ) ) );
+  cacheFields.append( QgsField( QgsWFSConstants::FIELD_HEXWKB_GEOM, QVariant::String, QStringLiteral( "string" ) ) );
   if ( mDistinctSelect )
-    cacheFields.append( QgsField( QgsWFSConstants::FIELD_MD5, QVariant::String, "string" ) );
+    cacheFields.append( QgsField( QgsWFSConstants::FIELD_MD5, QVariant::String, QStringLiteral( "string" ) ) );
 
   bool ogrWaySuccessful = false;
-  QString fidName( "__ogc_fid" );
-  QString geometryFieldname( "__spatialite_geometry" );
+  QString fidName( QStringLiteral( "__ogc_fid" ) );
+  QString geometryFieldname( QStringLiteral( "__spatialite_geometry" ) );
 #ifdef USE_OGR_FOR_DB_CREATION
   // Only GDAL >= 2.0 can use an alternate geometry or FID field name
   // but QgsVectorFileWriter will refuse anyway to create a ogc_fid, so we will
   // do it manually
-  bool useReservedNames = cacheFields.lookupField( "ogc_fid" ) >= 0;
-#if GDAL_VERSION_MAJOR < 2
-  if ( cacheFields.lookupField( "geometry" ) >= 0 )
-    useReservedNames = true;
-#endif
+  bool useReservedNames = cacheFields.lookupField( QStringLiteral( "ogc_fid" ) ) >= 0;
   if ( !useReservedNames )
   {
-#if GDAL_VERSION_MAJOR < 2
-    fidName = "ogc_fid";
-    geometryFieldname = "GEOMETRY";
-#endif
-    // Creating a spatialite database can be quite slow on some file systems
+    // Creating a SpatiaLite database can be quite slow on some file systems
     // so we create a GDAL in-memory file, and then copy it on
     // the file system.
     QString vsimemFilename;
     QStringList datasourceOptions;
     QStringList layerOptions;
-    datasourceOptions.push_back( "INIT_WITH_EPSG=NO" );
-    layerOptions.push_back( "LAUNDER=NO" ); // to get exact matches for field names, especially regarding case
-#if GDAL_VERSION_MAJOR >= 2
-    layerOptions.push_back( "FID=__ogc_fid" );
-    layerOptions.push_back( "GEOMETRY_NAME=__spatialite_geometry" );
-#endif
+    datasourceOptions.push_back( QStringLiteral( "INIT_WITH_EPSG=NO" ) );
+    layerOptions.push_back( QStringLiteral( "LAUNDER=NO" ) ); // to get exact matches for field names, especially regarding case
+    layerOptions.push_back( QStringLiteral( "FID=__ogc_fid" ) );
+    layerOptions.push_back( QStringLiteral( "GEOMETRY_NAME=__spatialite_geometry" ) );
     vsimemFilename.sprintf( "/vsimem/qgis_wfs_cache_template_%p/features.sqlite", this );
     mCacheTablename = CPLGetBasename( vsimemFilename.toStdString().c_str() );
     VSIUnlink( vsimemFilename.toStdString().c_str() );
-    QgsVectorFileWriter* writer = new QgsVectorFileWriter( vsimemFilename, "",
-        cacheFields, QgsWkbTypes::Polygon, QgsCoordinateReferenceSystem(), "SpatiaLite", datasourceOptions, layerOptions );
+    QgsVectorFileWriter *writer = new QgsVectorFileWriter( vsimemFilename, QLatin1String( "" ),
+        cacheFields, QgsWkbTypes::Polygon, QgsCoordinateReferenceSystem(), QStringLiteral( "SpatiaLite" ), datasourceOptions, layerOptions );
     if ( writer->hasError() == QgsVectorFileWriter::NoError )
     {
       delete writer;
 
       // Copy the temporary database back to disk
       vsi_l_offset nLength = 0;
-      GByte* pabyData = VSIGetMemFileBuffer( vsimemFilename.toStdString().c_str(), &nLength, TRUE );
-      VSILFILE* fp = VSIFOpenL( mCacheDbname.toStdString().c_str(), "wb " );
+      GByte *pabyData = VSIGetMemFileBuffer( vsimemFilename.toStdString().c_str(), &nLength, TRUE );
+      VSILFILE *fp = VSIFOpenL( mCacheDbname.toStdString().c_str(), "wb " );
       if ( fp )
       {
         VSIFWriteL( pabyData, 1, nLength, fp );
@@ -311,25 +297,25 @@ bool QgsWFSSharedData::createCache()
 #endif
   if ( !ogrWaySuccessful )
   {
-    static QMutex mutexDBnameCreation;
-    static QByteArray cachedDBTemplate;
-    QMutexLocker mutexDBnameCreationHolder( &mutexDBnameCreation );
-    if ( cachedDBTemplate.size() == 0 )
+    static QMutex sMutexDBnameCreation;
+    static QByteArray sCachedDBTemplate;
+    QMutexLocker mutexDBnameCreationHolder( &sMutexDBnameCreation );
+    if ( sCachedDBTemplate.size() == 0 )
     {
-      // Create a template Spatialite DB
+      // Create a template SpatiaLite DB
       QTemporaryFile tempFile;
       tempFile.open();
       tempFile.setAutoRemove( false );
       tempFile.close();
-      QString spatialite_lib = QgsProviderRegistry::instance()->library( "spatialite" );
-      QLibrary* myLib = new QLibrary( spatialite_lib );
+      QString spatialite_lib = QgsProviderRegistry::instance()->library( QStringLiteral( "spatialite" ) );
+      QLibrary *myLib = new QLibrary( spatialite_lib );
       bool loaded = myLib->load();
       bool created = false;
       if ( loaded )
       {
-        QgsDebugMsg( "spatialite provider loaded" );
+        QgsDebugMsg( "SpatiaLite provider loaded" );
 
-        typedef bool ( *createDbProc )( const QString&, QString& );
+        typedef bool ( *createDbProc )( const QString &, QString & );
         createDbProc createDbPtr = ( createDbProc ) cast_to_fptr( myLib->resolve( "createDb" ) );
         if ( createDbPtr )
         {
@@ -347,71 +333,71 @@ bool QgsWFSSharedData::createCache()
       // Ingest it in a buffer
       QFile file( tempFile.fileName() );
       if ( file.open( QIODevice::ReadOnly ) )
-        cachedDBTemplate = file.readAll();
+        sCachedDBTemplate = file.readAll();
       file.close();
       QFile::remove( tempFile.fileName() );
     }
 
-    // Copy the in-memory template Spatialite DB into the target DB
+    // Copy the in-memory template SpatiaLite DB into the target DB
     QFile dbFile( mCacheDbname );
     if ( !dbFile.open( QIODevice::WriteOnly | QIODevice::Truncate ) )
     {
       QgsMessageLog::logMessage( tr( "Cannot create temporary SpatiaLite cache" ), tr( "WFS" ) );
       return false;
     }
-    if ( dbFile.write( cachedDBTemplate ) < 0 )
+    if ( dbFile.write( sCachedDBTemplate ) < 0 )
     {
       QgsMessageLog::logMessage( tr( "Cannot create temporary SpatiaLite cache" ), tr( "WFS" ) );
       return false;
     }
   }
 
-  sqlite3 *db;
+  spatialite_database_unique_ptr database;
   bool ret = true;
-  int rc = QgsSLConnect::sqlite3_open( mCacheDbname.toUtf8(), &db );
+  int rc = database.open( mCacheDbname );
   if ( rc == SQLITE_OK )
   {
     QString sql;
 
-    ( void )sqlite3_exec( db, "PRAGMA synchronous=OFF", nullptr, nullptr, nullptr );
+    ( void )sqlite3_exec( database.get(), "PRAGMA synchronous=OFF", nullptr, nullptr, nullptr );
     // WAL is needed to avoid reader to block writers
-    ( void )sqlite3_exec( db, "PRAGMA journal_mode=WAL", nullptr, nullptr, nullptr );
+    ( void )sqlite3_exec( database.get(), "PRAGMA journal_mode=WAL", nullptr, nullptr, nullptr );
 
-    ( void )sqlite3_exec( db, "BEGIN", nullptr, nullptr, nullptr );
+    ( void )sqlite3_exec( database.get(), "BEGIN", nullptr, nullptr, nullptr );
 
     if ( !ogrWaySuccessful )
     {
-      mCacheTablename = "features";
-      sql = QString( "CREATE TABLE %1 (%2 INTEGER PRIMARY KEY" ).arg( mCacheTablename ).arg( fidName );
-      Q_FOREACH ( QgsField field, cacheFields )
+      mCacheTablename = QStringLiteral( "features" );
+      sql = QStringLiteral( "CREATE TABLE %1 (%2 INTEGER PRIMARY KEY" ).arg( mCacheTablename, fidName );
+      for ( const QgsField &field : qgis::as_const( cacheFields ) )
       {
-        QString type( "VARCHAR" );
+        QString type( QStringLiteral( "VARCHAR" ) );
         if ( field.type() == QVariant::Int )
-          type = "INTEGER";
+          type = QStringLiteral( "INTEGER" );
         else if ( field.type() == QVariant::LongLong )
-          type = "BIGINT";
+          type = QStringLiteral( "BIGINT" );
         else if ( field.type() == QVariant::Double )
-          type = "REAL";
-        sql += QString( ", %1 %2" ).arg( quotedIdentifier( field.name() ), type );
+          type = QStringLiteral( "REAL" );
+        sql += QStringLiteral( ", %1 %2" ).arg( quotedIdentifier( field.name() ), type );
       }
-      sql += ")";
-      rc = sqlite3_exec( db, sql.toUtf8(), nullptr, nullptr, nullptr );
+      sql += QLatin1String( ")" );
+      rc = sqlite3_exec( database.get(), sql.toUtf8(), nullptr, nullptr, nullptr );
       if ( rc != SQLITE_OK )
       {
         QgsDebugMsg( QString( "%1 failed" ).arg( sql ) );
         ret = false;
       }
 
-      sql = QString( "SELECT AddGeometryColumn('%1','%2',0,'POLYGON',2)" ).arg( mCacheTablename, geometryFieldname );
-      rc = sqlite3_exec( db, sql.toUtf8(), nullptr, nullptr, nullptr );
+      sql = QStringLiteral( "SELECT AddGeometryColumn('%1','%2',0,'POLYGON',2)" ).arg( mCacheTablename, geometryFieldname );
+      rc = sqlite3_exec( database.get(), sql.toUtf8(), nullptr, nullptr, nullptr );
       if ( rc != SQLITE_OK )
       {
         QgsDebugMsg( QString( "%1 failed" ).arg( sql ) );
         ret = false;
       }
 
-      sql = QString( "SELECT CreateSpatialIndex('%1','%2')" ).arg( mCacheTablename, geometryFieldname );
-      rc = sqlite3_exec( db, sql.toUtf8(), nullptr, nullptr, nullptr );
+      sql = QStringLiteral( "SELECT CreateSpatialIndex('%1','%2')" ).arg( mCacheTablename, geometryFieldname );
+      rc = sqlite3_exec( database.get(), sql.toUtf8(), nullptr, nullptr, nullptr );
       if ( rc != SQLITE_OK )
       {
         QgsDebugMsg( QString( "%1 failed" ).arg( sql ) );
@@ -421,8 +407,8 @@ bool QgsWFSSharedData::createCache()
 
     // We need an index on the gmlid, since we will check for duplicates, particularly
     // useful in the case we do overlapping BBOX requests
-    sql = QString( "CREATE INDEX idx_%2 ON %1(%2)" ).arg( mCacheTablename ).arg( QgsWFSConstants::FIELD_GMLID );
-    rc = sqlite3_exec( db, sql.toUtf8(), nullptr, nullptr, nullptr );
+    sql = QStringLiteral( "CREATE INDEX idx_%2 ON %1(%2)" ).arg( mCacheTablename, QgsWFSConstants::FIELD_GMLID );
+    rc = sqlite3_exec( database.get(), sql.toUtf8(), nullptr, nullptr, nullptr );
     if ( rc != SQLITE_OK )
     {
       QgsDebugMsg( QString( "%1 failed" ).arg( sql ) );
@@ -431,8 +417,8 @@ bool QgsWFSSharedData::createCache()
 
     if ( mDistinctSelect )
     {
-      sql = QString( "CREATE INDEX idx_%2 ON %1(%2)" ).arg( mCacheTablename ).arg( QgsWFSConstants::FIELD_MD5 );
-      rc = sqlite3_exec( db, sql.toUtf8(), nullptr, nullptr, nullptr );
+      sql = QStringLiteral( "CREATE INDEX idx_%2 ON %1(%2)" ).arg( mCacheTablename, QgsWFSConstants::FIELD_MD5 );
+      rc = sqlite3_exec( database.get(), sql.toUtf8(), nullptr, nullptr, nullptr );
       if ( rc != SQLITE_OK )
       {
         QgsDebugMsg( QString( "%1 failed" ).arg( sql ) );
@@ -440,9 +426,7 @@ bool QgsWFSSharedData::createCache()
       }
     }
 
-    ( void )sqlite3_exec( db, "COMMIT", nullptr, nullptr, nullptr );
-
-    QgsSLConnect::sqlite3_close( db );
+    ( void )sqlite3_exec( database.get(), "COMMIT", nullptr, nullptr, nullptr );
   }
   else
   {
@@ -458,13 +442,13 @@ bool QgsWFSSharedData::createCache()
   // regarding crashes, since this is a temporary DB
   QgsDataSourceUri dsURI;
   dsURI.setDatabase( mCacheDbname );
-  dsURI.setDataSource( "", mCacheTablename, geometryFieldname, "", fidName );
+  dsURI.setDataSource( QLatin1String( "" ), mCacheTablename, geometryFieldname, QLatin1String( "" ), fidName );
   QStringList pragmas;
-  pragmas << "synchronous=OFF";
-  pragmas << "journal_mode=WAL"; // WAL is needed to avoid reader to block writers
-  dsURI.setParam( "pragma", pragmas );
-  mCacheDataProvider = ( QgsVectorDataProvider* )( QgsProviderRegistry::instance()->provider(
-                         "spatialite", dsURI.uri() ) );
+  pragmas << QStringLiteral( "synchronous=OFF" );
+  pragmas << QStringLiteral( "journal_mode=WAL" ); // WAL is needed to avoid reader to block writers
+  dsURI.setParam( QStringLiteral( "pragma" ), pragmas );
+  mCacheDataProvider = ( QgsVectorDataProvider * )( QgsProviderRegistry::instance()->createProvider(
+                         QStringLiteral( "spatialite" ), dsURI.uri() ) );
   if ( mCacheDataProvider && !mCacheDataProvider->isValid() )
   {
     delete mCacheDataProvider;
@@ -479,7 +463,7 @@ bool QgsWFSSharedData::createCache()
   return true;
 }
 
-int QgsWFSSharedData::registerToCache( QgsWFSFeatureIterator* iterator, QgsRectangle rect )
+int QgsWFSSharedData::registerToCache( QgsWFSFeatureIterator *iterator, const QgsRectangle &rect )
 {
   // This locks prevents 2 readers to register at the same time (and particularly
   // destroy the current mDownloader at the same time)
@@ -554,10 +538,7 @@ int QgsWFSSharedData::registerToCache( QgsWFSFeatureIterator* iterator, QgsRecta
     mDownloadFinished = false;
     mComputedExtent = QgsRectangle();
     mDownloader = new QgsWFSThreadedFeatureDownloader( this );
-    QEventLoop loop;
-    connect( mDownloader, SIGNAL( ready() ), &loop, SLOT( quit() ) );
-    mDownloader->start();
-    loop.exec( QEventLoop::ExcludeUserInputEvents );
+    mDownloader->startAndWait();
   }
   if ( mDownloadFinished )
     return -1;
@@ -576,7 +557,7 @@ int QgsWFSSharedData::getUpdatedCounter()
   return mGenCounter ++;
 }
 
-QSet<QString> QgsWFSSharedData::getExistingCachedGmlIds( const QVector<QgsWFSFeatureGmlIdPair>& featureList )
+QSet<QString> QgsWFSSharedData::getExistingCachedGmlIds( const QVector<QgsWFSFeatureGmlIdPair> &featureList )
 {
   QString expr;
   bool first = true;
@@ -590,19 +571,19 @@ QSet<QString> QgsWFSSharedData::getExistingCachedGmlIds( const QVector<QgsWFSFea
   for ( int i = 0; i < featureList.size(); i ++ )
   {
     if ( !first )
-      expr += ",";
+      expr += QLatin1String( "," );
     else
     {
       expr = QgsWFSConstants::FIELD_GMLID + " IN (";
       first = false;
     }
-    expr += "'";
+    expr += QLatin1String( "'" );
     expr += featureList[i].second;
-    expr += "'";
+    expr += QLatin1String( "'" );
 
-    if (( i > 0 && ( i % 1000 ) == 0 ) || i + 1 == featureList.size() )
+    if ( ( i > 0 && ( i % 1000 ) == 0 ) || i + 1 == featureList.size() )
     {
-      expr += ")";
+      expr += QLatin1String( ")" );
 
       QgsFeatureRequest request;
       request.setFilterExpression( expr );
@@ -627,7 +608,7 @@ QSet<QString> QgsWFSSharedData::getExistingCachedGmlIds( const QVector<QgsWFSFea
   return setExistingGmlIds;
 }
 
-QSet<QString> QgsWFSSharedData::getExistingCachedMD5( const QVector<QgsWFSFeatureGmlIdPair>& featureList )
+QSet<QString> QgsWFSSharedData::getExistingCachedMD5( const QVector<QgsWFSFeatureGmlIdPair> &featureList )
 {
   QString expr;
   bool first = true;
@@ -641,19 +622,19 @@ QSet<QString> QgsWFSSharedData::getExistingCachedMD5( const QVector<QgsWFSFeatur
   for ( int i = 0; i < featureList.size(); i ++ )
   {
     if ( !first )
-      expr += ",";
+      expr += QLatin1String( "," );
     else
     {
       expr = QgsWFSConstants::FIELD_MD5 + " IN (";
       first = false;
     }
-    expr += "'";
+    expr += QLatin1String( "'" );
     expr += QgsWFSUtils::getMD5( featureList[i].first );
-    expr += "'";
+    expr += QLatin1String( "'" );
 
-    if (( i > 0 && ( i % 1000 ) == 0 ) || i + 1 == featureList.size() )
+    if ( ( i > 0 && ( i % 1000 ) == 0 ) || i + 1 == featureList.size() )
     {
-      expr += ")";
+      expr += QLatin1String( ")" );
 
       QgsFeatureRequest request;
       request.setFilterExpression( expr );
@@ -695,7 +676,6 @@ QString QgsWFSSharedData::findGmlId( QgsFeatureId fid )
 
   QgsFeatureIterator iterGmlIds( mCacheDataProvider->getFeatures( request ) );
   QgsFeature gmlidFeature;
-  QSet<QString> setExistingGmlIds;
   while ( iterGmlIds.nextFeature( gmlidFeature ) )
   {
     const QVariant &v = gmlidFeature.attributes().value( gmlidIdx );
@@ -705,7 +685,7 @@ QString QgsWFSSharedData::findGmlId( QgsFeatureId fid )
 }
 
 // Used by WFS-T
-bool QgsWFSSharedData::deleteFeatures( const QgsFeatureIds& fidlist )
+bool QgsWFSSharedData::deleteFeatures( const QgsFeatureIds &fidlist )
 {
   if ( !mCacheDataProvider )
     return false;
@@ -734,17 +714,15 @@ bool QgsWFSSharedData::changeGeometryValues( const QgsGeometryMap &geometry_map 
   QgsChangedAttributesMap newChangedAttrMap;
   for ( QgsGeometryMap::const_iterator iter = geometry_map.constBegin(); iter != geometry_map.constEnd(); ++iter )
   {
-    const unsigned char *geom = iter->asWkb();
-    int geomSize = iter->wkbSize();
-    if ( geomSize )
+    QByteArray wkb = iter->asWkb();
+    if ( !wkb.isEmpty() )
     {
       QgsAttributeMap newAttrMap;
-      QByteArray array(( const char* )geom, geomSize );
-      newAttrMap[idx] = QString( array.toHex().data() );
+      newAttrMap[idx] = QString( wkb.toHex().data() );
       newChangedAttrMap[ iter.key()] = newAttrMap;
 
-      QgsGeometry polyBoudingBox = QgsGeometry::fromRect( iter.value().boundingBox() );
-      newGeometryMap[ iter.key()] = polyBoudingBox;
+      QgsGeometry polyBoundingBox = QgsGeometry::fromRect( iter.value().boundingBox() );
+      newGeometryMap[ iter.key()] = polyBoundingBox;
     }
     else
     {
@@ -789,7 +767,7 @@ bool QgsWFSSharedData::changeAttributeValues( const QgsChangedAttributesMap &att
   return mCacheDataProvider->changeAttributeValues( newMap );
 }
 
-void QgsWFSSharedData::serializeFeatures( QVector<QgsWFSFeatureGmlIdPair>& featureList )
+void QgsWFSSharedData::serializeFeatures( QVector<QgsWFSFeatureGmlIdPair> &featureList )
 {
   QgsDebugMsg( QString( "begin %1" ).arg( featureList.size() ) );
 
@@ -830,11 +808,11 @@ void QgsWFSSharedData::serializeFeatures( QVector<QgsWFSFeatureGmlIdPair>& featu
   QVector<QgsWFSFeatureGmlIdPair> updatedFeatureList;
 
   QgsRectangle localComputedExtent( mComputedExtent );
-  Q_FOREACH ( QgsWFSFeatureGmlIdPair featPair, featureList )
+  Q_FOREACH ( const QgsWFSFeatureGmlIdPair &featPair, featureList )
   {
-    const QgsFeature& gmlFeature = featPair.first;
+    const QgsFeature &gmlFeature = featPair.first;
 
-    const QString& gmlId = featPair.second;
+    const QString &gmlId = featPair.second;
     QString md5;
     if ( mDistinctSelect )
     {
@@ -870,11 +848,9 @@ void QgsWFSSharedData::serializeFeatures( QVector<QgsWFSFeatureGmlIdPair>& featu
 
     //copy the geometry
     QgsGeometry geometry = gmlFeature.geometry();
-    if ( !mGeometryAttribute.isEmpty() && !geometry.isEmpty() )
+    if ( !mGeometryAttribute.isEmpty() && !geometry.isNull() )
     {
-      const unsigned char *geom = geometry.asWkb();
-      int geomSize = geometry.wkbSize();
-      QByteArray array(( const char* )geom, geomSize );
+      QByteArray array( geometry.asWkb() );
 
       cachedFeature.setAttribute( hexwkbGeomIdx, QVariant( QString( array.toHex().data() ) ) );
 
@@ -900,7 +876,7 @@ void QgsWFSSharedData::serializeFeatures( QVector<QgsWFSFeatureGmlIdPair>& featu
         const QVariant &v = gmlFeature.attributes().value( i );
         if ( v.type() == QVariant::DateTime && !v.isNull() )
           cachedFeature.setAttribute( idx, QVariant( v.toDateTime().toMSecsSinceEpoch() ) );
-        else if ( v.type() !=  dataProviderFields.at( idx ).type() )
+        else if ( v.type() != dataProviderFields.at( idx ).type() )
           cachedFeature.setAttribute( idx, QgsVectorDataProvider::convertValue( dataProviderFields.at( idx ).type(), v.toString() ) );
         else
           cachedFeature.setAttribute( idx, v );
@@ -929,15 +905,15 @@ void QgsWFSSharedData::serializeFeatures( QVector<QgsWFSFeatureGmlIdPair>& featu
 
     // Update the feature ids of the non-cached feature, i.e. the one that
     // will be notified to the user, from the feature id of the database
-    // That way we will always have a consistant feature id, even in case of
+    // That way we will always have a consistent feature id, even in case of
     // paging or BBOX request
     Q_ASSERT( featureListToCache.size() == updatedFeatureList.size() );
     for ( int i = 0; i < updatedFeatureList.size(); i++ )
     {
       if ( cacheOk )
-        updatedFeatureList[i].first.setFeatureId( featureListToCache[i].id() );
+        updatedFeatureList[i].first.setId( featureListToCache[i].id() );
       else
-        updatedFeatureList[i].first.setFeatureId( mTotalFeaturesAttemptedToBeCached + i + 1 );
+        updatedFeatureList[i].first.setId( mTotalFeaturesAttemptedToBeCached + i + 1 );
     }
 
     {
@@ -969,23 +945,23 @@ QgsRectangle QgsWFSSharedData::computedExtent()
   return mComputedExtent;
 }
 
-void QgsWFSSharedData::pushError( const QString& errorMsg )
+void QgsWFSSharedData::pushError( const QString &errorMsg )
 {
   QgsMessageLog::logMessage( errorMsg, tr( "WFS" ) );
   emit raiseError( errorMsg );
 }
 
-/** Called by QgsWFSFeatureDownloader::run() at the end of the download process. */
+//! Called by QgsWFSFeatureDownloader::run() at the end of the download process.
 void QgsWFSSharedData::endOfDownload( bool success, int featureCount,
                                       bool truncatedResponse,
                                       bool interrupted,
-                                      QString errorMsg )
+                                      const QString &errorMsg )
 {
   QMutexLocker locker( &mMutex );
 
   if ( !success && !interrupted )
   {
-    QString errorMsgOut( tr( "Download of features for layer %1 failed or partially failed: %2. You may attempt reloading the layer with F5" ).arg( mURI.typeName() ).arg( errorMsg ) );
+    QString errorMsgOut( tr( "Download of features for layer %1 failed or partially failed: %2. You may attempt reloading the layer with F5" ).arg( mURI.typeName(), errorMsg ) );
     pushError( errorMsgOut );
   }
 
@@ -1039,7 +1015,7 @@ void QgsWFSSharedData::endOfDownload( bool success, int featureCount,
     QgsFeature f;
     f.setGeometry( QgsGeometry::fromRect( mRect ) );
     QgsFeatureId id = mRegions.size();
-    f.setFeatureId( id );
+    f.setId( id );
     f.initAttributes( 1 );
     f.setAttribute( 0, QVariant( bDownloadLimit ) );
     mRegions.push_back( f );
@@ -1067,7 +1043,7 @@ void QgsWFSSharedData::endOfDownload( bool success, int featureCount,
       msg += " " + tr( "Zoom in to fetch all data." );
     else
       msg += " " + tr( "You may want to check the 'Only request features overlapping the view extent' option to be able to zoom in to fetch all data." );
-    QgsMessageLog::logMessage( msg, "WFS" );
+    QgsMessageLog::logMessage( msg, QStringLiteral( "WFS" ) );
   }
 }
 
@@ -1154,7 +1130,7 @@ int QgsWFSSharedData::getFeatureCount( bool issueRequestIfNeeded )
   return mFeatureCount;
 }
 
-QgsGmlStreamingParser* QgsWFSSharedData::createParser()
+QgsGmlStreamingParser *QgsWFSSharedData::createParser()
 {
   QgsGmlStreamingParser::AxisOrientationLogic axisOrientationLogic( QgsGmlStreamingParser::Honour_EPSG_if_urn );
   if ( mURI.ignoreAxisOrientation() )
@@ -1162,7 +1138,7 @@ QgsGmlStreamingParser* QgsWFSSharedData::createParser()
     axisOrientationLogic = QgsGmlStreamingParser::Ignore_EPSG;
   }
 
-  if ( mLayerPropertiesList.size() )
+  if ( !mLayerPropertiesList.isEmpty() )
   {
     QList< QgsGmlStreamingParser::LayerProperties > layerPropertiesList;
     Q_FOREACH ( QgsOgcUtils::LayerProperties layerProperties, mLayerPropertiesList )
@@ -1193,35 +1169,31 @@ QgsGmlStreamingParser* QgsWFSSharedData::createParser()
 // -------------------------
 
 
-QgsWFSFeatureHitsRequest::QgsWFSFeatureHitsRequest( QgsWFSDataSourceURI& uri )
-    : QgsWfsRequest( uri.uri() )
+QgsWFSFeatureHitsRequest::QgsWFSFeatureHitsRequest( QgsWFSDataSourceURI &uri )
+  : QgsWfsRequest( uri.uri() )
 {
 }
 
-QgsWFSFeatureHitsRequest::~QgsWFSFeatureHitsRequest()
-{
-}
-
-int QgsWFSFeatureHitsRequest::getFeatureCount( const QString& WFSVersion,
-    const QString& filter )
+int QgsWFSFeatureHitsRequest::getFeatureCount( const QString &WFSVersion,
+    const QString &filter )
 {
   QUrl getFeatureUrl( mUri.baseURL() );
-  getFeatureUrl.addQueryItem( "REQUEST", "GetFeature" );
-  getFeatureUrl.addQueryItem( "VERSION",  WFSVersion );
-  if ( WFSVersion.startsWith( "2.0" ) )
-    getFeatureUrl.addQueryItem( "TYPENAMES", mUri.typeName() );
+  getFeatureUrl.addQueryItem( QStringLiteral( "REQUEST" ), QStringLiteral( "GetFeature" ) );
+  getFeatureUrl.addQueryItem( QStringLiteral( "VERSION" ),  WFSVersion );
+  if ( WFSVersion.startsWith( QLatin1String( "2.0" ) ) )
+    getFeatureUrl.addQueryItem( QStringLiteral( "TYPENAMES" ), mUri.typeName() );
   else
-    getFeatureUrl.addQueryItem( "TYPENAME", mUri.typeName() );
+    getFeatureUrl.addQueryItem( QStringLiteral( "TYPENAME" ), mUri.typeName() );
   if ( !filter.isEmpty() )
   {
-    getFeatureUrl.addQueryItem( "FILTER", filter );
+    getFeatureUrl.addQueryItem( QStringLiteral( "FILTER" ), filter );
   }
-  getFeatureUrl.addQueryItem( "RESULTTYPE", "hits" );
+  getFeatureUrl.addQueryItem( QStringLiteral( "RESULTTYPE" ), QStringLiteral( "hits" ) );
 
   if ( !sendGET( getFeatureUrl, true ) )
     return -1;
 
-  const QByteArray& buffer = response();
+  const QByteArray &buffer = response();
 
   QgsDebugMsg( "parsing QgsWFSFeatureHitsRequest: " + buffer );
 
@@ -1236,8 +1208,8 @@ int QgsWFSFeatureHitsRequest::getFeatureCount( const QString& WFSVersion,
 
   QDomElement doc = domDoc.documentElement();
   QString numberOfFeatures =
-    ( WFSVersion.startsWith( "1.1" ) ) ? doc.attribute( "numberOfFeatures" ) :
-    /* 2.0 */                         doc.attribute( "numberMatched" ) ;
+    ( WFSVersion.startsWith( QLatin1String( "1.1" ) ) ) ? doc.attribute( QStringLiteral( "numberOfFeatures" ) ) :
+    /* 2.0 */                         doc.attribute( QStringLiteral( "numberMatched" ) );
   if ( !numberOfFeatures.isEmpty() )
   {
     bool isValid;
@@ -1250,7 +1222,7 @@ int QgsWFSFeatureHitsRequest::getFeatureCount( const QString& WFSVersion,
   return -1;
 }
 
-QString QgsWFSFeatureHitsRequest::errorMessageWithReason( const QString& reason )
+QString QgsWFSFeatureHitsRequest::errorMessageWithReason( const QString &reason )
 {
   return tr( "Download of feature count failed: %1" ).arg( reason );
 }
@@ -1259,51 +1231,46 @@ QString QgsWFSFeatureHitsRequest::errorMessageWithReason( const QString& reason 
 // -------------------------
 
 
-QgsWFSSingleFeatureRequest::QgsWFSSingleFeatureRequest( QgsWFSSharedData* shared )
-    : QgsWfsRequest( shared->mURI.uri() ), mShared( shared )
-{
-}
-
-QgsWFSSingleFeatureRequest::~QgsWFSSingleFeatureRequest()
+QgsWFSSingleFeatureRequest::QgsWFSSingleFeatureRequest( QgsWFSSharedData *shared )
+  : QgsWfsRequest( shared->mURI.uri() ), mShared( shared )
 {
 }
 
 QgsRectangle QgsWFSSingleFeatureRequest::getExtent()
 {
   QUrl getFeatureUrl( mUri.baseURL() );
-  getFeatureUrl.addQueryItem( "REQUEST", "GetFeature" );
-  getFeatureUrl.addQueryItem( "VERSION",  mShared->mWFSVersion );
-  if ( mShared->mWFSVersion .startsWith( "2.0" ) )
-    getFeatureUrl.addQueryItem( "TYPENAMES", mUri.typeName() );
+  getFeatureUrl.addQueryItem( QStringLiteral( "REQUEST" ), QStringLiteral( "GetFeature" ) );
+  getFeatureUrl.addQueryItem( QStringLiteral( "VERSION" ),  mShared->mWFSVersion );
+  if ( mShared->mWFSVersion .startsWith( QLatin1String( "2.0" ) ) )
+    getFeatureUrl.addQueryItem( QStringLiteral( "TYPENAMES" ), mUri.typeName() );
   else
-    getFeatureUrl.addQueryItem( "TYPENAME", mUri.typeName() );
-  if ( mShared->mWFSVersion .startsWith( "2.0" ) )
-    getFeatureUrl.addQueryItem( "COUNT", QString::number( 1 ) );
+    getFeatureUrl.addQueryItem( QStringLiteral( "TYPENAME" ), mUri.typeName() );
+  if ( mShared->mWFSVersion .startsWith( QLatin1String( "2.0" ) ) )
+    getFeatureUrl.addQueryItem( QStringLiteral( "COUNT" ), QString::number( 1 ) );
   else
-    getFeatureUrl.addQueryItem( "MAXFEATURES", QString::number( 1 ) );
+    getFeatureUrl.addQueryItem( QStringLiteral( "MAXFEATURES" ), QString::number( 1 ) );
 
   if ( !sendGET( getFeatureUrl, true ) )
     return -1;
 
-  const QByteArray& buffer = response();
+  const QByteArray &buffer = response();
 
   QgsDebugMsg( "parsing QgsWFSSingleFeatureRequest: " + buffer );
 
   // parse XML
-  QgsGmlStreamingParser* parser = mShared->createParser();
+  QgsGmlStreamingParser *parser = mShared->createParser();
   QString gmlProcessErrorMsg;
   QgsRectangle extent;
   if ( parser->processData( buffer, true, gmlProcessErrorMsg ) )
   {
     QVector<QgsGmlStreamingParser::QgsGmlFeaturePtrGmlIdPair> featurePtrList =
       parser->getAndStealReadyFeatures();
-    QVector<QgsWFSFeatureGmlIdPair> featureList;
-    for ( int i = 0;i < featurePtrList.size();i++ )
+    for ( int i = 0; i < featurePtrList.size(); i++ )
     {
-      QgsGmlStreamingParser::QgsGmlFeaturePtrGmlIdPair& featPair = featurePtrList[i];
+      QgsGmlStreamingParser::QgsGmlFeaturePtrGmlIdPair &featPair = featurePtrList[i];
       QgsFeature f( *( featPair.first ) );
       QgsGeometry geometry = f.geometry();
-      if ( !geometry.isEmpty() )
+      if ( !geometry.isNull() )
       {
         extent = geometry.boundingBox();
       }
@@ -1314,7 +1281,7 @@ QgsRectangle QgsWFSSingleFeatureRequest::getExtent()
   return extent;
 }
 
-QString QgsWFSSingleFeatureRequest::errorMessageWithReason( const QString& reason )
+QString QgsWFSSingleFeatureRequest::errorMessageWithReason( const QString &reason )
 {
   return tr( "Download of feature failed: %1" ).arg( reason );
 }

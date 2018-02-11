@@ -38,6 +38,7 @@ class QgsOwsProvider : public QgsDataProvider
     Q_OBJECT
 
   public:
+
     /**
      * Constructor for the provider.
      *
@@ -45,10 +46,7 @@ class QgsOwsProvider : public QgsDataProvider
      *                otherwise we contact the host directly.
      *
      */
-    explicit QgsOwsProvider( const QString & uri = QString() );
-
-    //! Destructor
-    ~QgsOwsProvider();
+    explicit QgsOwsProvider( const QString &uri = QString() );
 
     /* Pure virtuals */
 

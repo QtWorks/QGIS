@@ -16,8 +16,6 @@
 *                                                                         *
 ***************************************************************************
 """
-from builtins import str
-from builtins import object
 
 __author__ = 'René-Luc Dhont'
 __date__ = 'November 2015'
@@ -28,20 +26,22 @@ __copyright__ = '(C) 2015, René-Luc Dhont'
 __revision__ = '$Format:%H$'
 
 from qgis.utils import spatialite_connect
+import sqlite3 as sqlite
+import re
 
 
 class DbError(Exception):
 
     def __init__(self, message, query=None):
         # Save error. funny that the variables are in utf-8
-        self.message = str(message, 'utf-8')
-        self.query = (str(query, 'utf-8') if query is not None else None)
+        self.message = str(message)
+        self.query = (str(query) if query is not None else None)
 
     def __str__(self):
         return 'MESSAGE: %s\nQUERY: %s' % (self.message, self.query)
 
 
-class GeoDB(object):
+class GeoDB:
 
     def __init__(self, uri=None):
         self.uri = uri
@@ -61,16 +61,15 @@ class GeoDB(object):
         return str(self.dbname)
 
     def init_spatialite(self):
-        # Get spatialite version
+        # Get SpatiaLite version
         c = self.con.cursor()
         try:
             self._exec_sql(c, u'SELECT spatialite_version()')
             rep = c.fetchall()
-            v = [int(a) for a in rep[0][0].split('.')]
-            vv = v[0] * 100000 + v[1] * 1000 + v[2] * 10
+            v = [int(x) if x.isdigit() else x for x in re.findall("\d+|[a-zA-Z]+", rep[0][0])]
 
-            # Add spatialite support
-            if vv >= 401000:
+            # Add SpatiaLite support
+            if v >= [4, 1, 0]:
                 # 4.1 and above
                 sql = "SELECT initspatialmetadata(1)"
             else:
@@ -122,3 +121,13 @@ class GeoDB(object):
         except DbError:
             self.con.rollback()
             raise
+
+    def create_spatial_index(self, table, geom_column='the_geom'):
+        sql = u"SELECT CreateSpatialIndex(%s, %s)" % (self._quote(table), self._quote(geom_column))
+        self._exec_sql_and_commit(sql)
+
+    def _quote(self, identifier):
+        """Quote identifier."""
+
+        # quote identifier, and double the double-quotes
+        return u"'%s'" % identifier.replace("'", "''")

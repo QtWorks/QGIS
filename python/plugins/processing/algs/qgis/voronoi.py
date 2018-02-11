@@ -16,12 +16,6 @@
 *                                                                         *
 ***************************************************************************
 """
-from __future__ import print_function
-from builtins import next
-from past.builtins import cmp
-from builtins import str
-from builtins import range
-from builtins import object
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -128,14 +122,16 @@ Algorithmica 2, 153-174.
 #        Delaunay triangle.
 #
 #############################################################################
+
+
 import math
 import sys
 import getopt
 TOLERANCE = 1e-9
 BIG_FLOAT = 1e38
 
-#------------------------------------------------------------------
 
+# ------------------------------------------------------------------
 
 class Context(object):
 
@@ -224,7 +220,7 @@ class Context(object):
                 # fix_print_with_import
                 print("e %d %d %d" % (edge.edgenum, sitenumL, sitenumR))
 
-#------------------------------------------------------------------
+# ------------------------------------------------------------------
 
 
 def voronoi(siteList, context):
@@ -369,7 +365,7 @@ def voronoi(siteList, context):
         # fix_print_with_import
         print(str(err))
 
-#------------------------------------------------------------------
+# ------------------------------------------------------------------
 
 
 def isEqual(a, b, relativeError=TOLERANCE):
@@ -377,7 +373,7 @@ def isEqual(a, b, relativeError=TOLERANCE):
     norm = max(abs(a), abs(b))
     return (norm < relativeError) or (abs(a - b) < (relativeError * norm))
 
-#------------------------------------------------------------------
+# ------------------------------------------------------------------
 
 
 class Site(object):
@@ -391,24 +387,25 @@ class Site(object):
         # fix_print_with_import
         print("Site #%d (%g, %g)" % (self.sitenum, self.x, self.y))
 
-    def __cmp__(self, other):
+    def __eq__(self, other):
+        return (self.x == other.x) and (self.y == other.y)
+
+    def __lt__(self, other):
         if self.y < other.y:
-            return -1
+            return True
         elif self.y > other.y:
-            return 1
+            return False
         elif self.x < other.x:
-            return -1
+            return True
         elif self.x > other.x:
-            return 1
-        else:
-            return 0
+            return False
 
     def distance(self, other):
         dx = self.x - other.x
         dy = self.y - other.y
         return math.sqrt(dx * dx + dy * dy)
 
-#------------------------------------------------------------------
+# ------------------------------------------------------------------
 
 
 class Edge(object):
@@ -472,7 +469,7 @@ class Edge(object):
         return newedge
 
 
-#------------------------------------------------------------------
+# ------------------------------------------------------------------
 class Halfedge(object):
 
     def __init__(self, edge=None, pm=Edge.LE):
@@ -505,17 +502,18 @@ class Halfedge(object):
         # fix_print_with_import
         print("ystar: ", self.ystar)
 
-    def __cmp__(self, other):
-        if self.ystar > other.ystar:
-            return 1
-        elif self.ystar < other.ystar:
-            return -1
-        elif self.vertex.x > other.vertex.x:
-            return 1
+    def __eq__(self, other):
+        return (self.vertex.x == other.vertex.x) and (self.ystar == other.ystar)
+
+    def __lt__(self, other):
+        if self.ystar < other.ystar:
+            return True
+        elif self.ystar > other.ystar:
+            return False
         elif self.vertex.x < other.vertex.x:
-            return -1
-        else:
-            return 0
+            return True
+        elif self.vertex.x > other.vertex.x:
+            return False
 
     def leftreg(self, default):
         if not self.edge:
@@ -575,7 +573,7 @@ class Halfedge(object):
         else:
             return not above
 
-    #--------------------------
+    # --------------------------
     # create a new site where the Halfedges el1 and el2 intersect
     def intersect(self, other):
         e1 = self.edge
@@ -610,7 +608,7 @@ class Halfedge(object):
         return Site(xint, yint)
 
 
-#------------------------------------------------------------------
+# ------------------------------------------------------------------
 class EdgeList(object):
 
     def __init__(self, xmin, xmax, nsites):
@@ -691,7 +689,7 @@ class EdgeList(object):
         return he
 
 
-#------------------------------------------------------------------
+# ------------------------------------------------------------------
 class PriorityQueue(object):
 
     def __init__(self, ymin, ymax, nsites):
@@ -756,7 +754,7 @@ class PriorityQueue(object):
         return curr
 
 
-#------------------------------------------------------------------
+# ------------------------------------------------------------------
 class SiteList(object):
 
     def __init__(self, pointList):
@@ -791,7 +789,7 @@ class SiteList(object):
         def __iter__(this):
             return this
 
-        def next(this):
+        def __next__(this):
             try:
                 return next(this.generator)
             except StopIteration:
@@ -824,7 +822,7 @@ class SiteList(object):
     ymax = property(_getymax)
 
 
-#------------------------------------------------------------------
+# ------------------------------------------------------------------
 def computeVoronoiDiagram(points):
     """ Takes a list of point objects (which must have x and y fields).
         Returns a 3-tuple of:
@@ -843,7 +841,7 @@ def computeVoronoiDiagram(points):
     voronoi(siteList, context)
     return (context.vertices, context.lines, context.edges)
 
-#------------------------------------------------------------------
+# ------------------------------------------------------------------
 
 
 def computeDelaunayTriangulation(points):
@@ -857,7 +855,8 @@ def computeDelaunayTriangulation(points):
     voronoi(siteList, context)
     return context.triangles
 
-#-----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
 if __name__ == "__main__":
     try:
         optlist, args = getopt.getopt(sys.argv[1:], "thdp")
@@ -897,3 +896,13 @@ if __name__ == "__main__":
 
     sl = SiteList(pts)
     voronoi(sl, c)
+
+
+def cmp(a, b):
+    """Compare the two objects x and y and return an integer according to the
+    outcome. The return value is negative if x < y, zero if x == y and strictly
+    positive if x > y.
+
+    In python 2 cmp() was a built in function but in python 3 is gone.
+    """
+    return (a > b) - (a < b)

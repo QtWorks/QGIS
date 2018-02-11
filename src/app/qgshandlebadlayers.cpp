@@ -19,29 +19,26 @@
 #include "qgisapp.h"
 #include "qgsauthconfigselect.h"
 #include "qgsdataprovider.h"
-#include "qgisgui.h"
+#include "qgsguiutils.h"
 #include "qgsdatasourceuri.h"
 #include "qgslogger.h"
 #include "qgsrasterlayer.h"
 #include "qgsproviderregistry.h"
 #include "qgsmessagebar.h"
+#include "qgssettings.h"
 
 #include <QDomDocument>
 #include <QDomElement>
 #include <QFileDialog>
 #include <QPushButton>
+#include <QToolButton>
 #include <QMessageBox>
-#include <QSettings>
 #include <QUrl>
 
-QgsHandleBadLayersHandler::QgsHandleBadLayersHandler()
-{
-}
-
-void QgsHandleBadLayersHandler::handleBadLayers( const QList<QDomNode>& layers, const QDomDocument& projectDom )
+void QgsHandleBadLayersHandler::handleBadLayers( const QList<QDomNode> &layers )
 {
   QApplication::setOverrideCursor( Qt::ArrowCursor );
-  QgsHandleBadLayers *dialog = new QgsHandleBadLayers( layers, projectDom );
+  QgsHandleBadLayers *dialog = new QgsHandleBadLayers( layers );
 
   if ( dialog->layerCount() < layers.size() )
     QgisApp::instance()->messageBar()->pushMessage(
@@ -49,7 +46,7 @@ void QgsHandleBadLayersHandler::handleBadLayers( const QList<QDomNode>& layers, 
       tr( "%1 of %2 bad layers were not fixable." )
       .arg( layers.size() - dialog->layerCount() )
       .arg( layers.size() ),
-      QgsMessageBar::WARNING, QgisApp::instance()->messageTimeout() );
+      Qgis::Warning, QgisApp::instance()->messageTimeout() );
 
   if ( dialog->layerCount() > 0 )
     dialog->exec();
@@ -59,11 +56,10 @@ void QgsHandleBadLayersHandler::handleBadLayers( const QList<QDomNode>& layers, 
 }
 
 
-QgsHandleBadLayers::QgsHandleBadLayers( const QList<QDomNode> &layers, const QDomDocument &projectDom )
-    : QDialog( QgisApp::instance() )
-    , mLayers( layers )
+QgsHandleBadLayers::QgsHandleBadLayers( const QList<QDomNode> &layers )
+  : QDialog( QgisApp::instance() )
+  , mLayers( layers )
 {
-  Q_UNUSED( projectDom );
   setupUi( this );
 
   mVectorFileFilter = QgsProviderRegistry::instance()->fileVectorFilters();
@@ -73,9 +69,9 @@ QgsHandleBadLayers::QgsHandleBadLayers( const QList<QDomNode> &layers, const QDo
   buttonBox->addButton( mBrowseButton, QDialogButtonBox::ActionRole );
   mBrowseButton->setDisabled( true );
 
-  connect( mLayerList, SIGNAL( itemSelectionChanged() ), this, SLOT( selectionChanged() ) );
-  connect( mBrowseButton, SIGNAL( clicked() ), this, SLOT( browseClicked() ) );
-  connect( buttonBox->button( QDialogButtonBox::Apply ), SIGNAL( clicked() ), this, SLOT( apply() ) );
+  connect( mLayerList, &QTableWidget::itemSelectionChanged, this, &QgsHandleBadLayers::selectionChanged );
+  connect( mBrowseButton, &QAbstractButton::clicked, this, &QgsHandleBadLayers::browseClicked );
+  connect( buttonBox->button( QDialogButtonBox::Apply ), &QAbstractButton::clicked, this, &QgsHandleBadLayers::apply );
 
   mLayerList->clear();
   mLayerList->setSortingEnabled( true );
@@ -96,11 +92,11 @@ QgsHandleBadLayers::QgsHandleBadLayers( const QList<QDomNode> &layers, const QDo
   {
     const QDomNode &node = mLayers[i];
 
-    QString name = node.namedItem( "layername" ).toElement().text();
-    QString type = node.toElement().attribute( "type" );
-    QString datasource = node.namedItem( "datasource" ).toElement().text();
-    QString provider = node.namedItem( "provider" ).toElement().text();
-    QString vectorProvider = type == "vector" ? provider : tr( "none" );
+    QString name = node.namedItem( QStringLiteral( "layername" ) ).toElement().text();
+    QString type = node.toElement().attribute( QStringLiteral( "type" ) );
+    QString datasource = node.namedItem( QStringLiteral( "datasource" ) ).toElement().text();
+    QString provider = node.namedItem( QStringLiteral( "provider" ) ).toElement().text();
+    QString vectorProvider = type == QLatin1String( "vector" ) ? provider : tr( "none" );
     bool providerFileBased = ( QgsProviderRegistry::instance()->providerCapabilities( provider ) & QgsDataProvider::File ) != 0;
 
     QgsDebugMsg( QString( "name=%1 type=%2 provider=%3 datasource='%4'" )
@@ -111,7 +107,7 @@ QgsHandleBadLayers::QgsHandleBadLayers( const QList<QDomNode> &layers, const QDo
 
     mLayerList->setRowCount( j + 1 );
 
-    QTableWidgetItem *item;
+    QTableWidgetItem *item = nullptr;
 
     item = new QTableWidgetItem( name );
     item->setData( Qt::UserRole + 0, i );
@@ -134,12 +130,12 @@ QgsHandleBadLayers::QgsHandleBadLayers( const QList<QDomNode> &layers, const QDo
       btn->setMinimumHeight( 24 );
       btn->setText( tr( "Edit" ) );
       btn->setProperty( "row", j );
-      connect( btn, SIGNAL( clicked() ), this, SLOT( editAuthCfg() ) );
+      connect( btn, &QAbstractButton::clicked, this, &QgsHandleBadLayers::editAuthCfg );
       mLayerList->setCellWidget( j, 3, btn );
     }
     else
     {
-      item = new QTableWidgetItem( "" );
+      item = new QTableWidgetItem( QLatin1String( "" ) );
       mLayerList->setItem( j, 3, item );
     }
 
@@ -150,10 +146,6 @@ QgsHandleBadLayers::QgsHandleBadLayers( const QList<QDomNode> &layers, const QDo
   }
 
   // mLayerList->resizeColumnsToContents();
-}
-
-QgsHandleBadLayers::~QgsHandleBadLayers()
-{
 }
 
 void QgsHandleBadLayers::selectionChanged()
@@ -182,19 +174,19 @@ QString QgsHandleBadLayers::filename( int row )
   QString provider = mLayerList->item( row, 2 )->text();
   QString datasource = mLayerList->item( row, 4 )->text();
 
-  if ( type == "vector" )
+  if ( type == QLatin1String( "vector" ) )
   {
-    if ( provider == "spatialite" )
+    if ( provider == QLatin1String( "spatialite" ) )
     {
       QgsDataSourceUri uri( datasource );
       return uri.database();
     }
-    else if ( provider == "ogr" )
+    else if ( provider == QLatin1String( "ogr" ) )
     {
       QStringList theURIParts = datasource.split( '|' );
       return theURIParts[0];
     }
-    else if ( provider == "delimitedtext" )
+    else if ( provider == QLatin1String( "delimitedtext" ) )
     {
       return QUrl::fromEncoded( datasource.toLatin1() ).toLocalFile();
     }
@@ -204,12 +196,12 @@ QString QgsHandleBadLayers::filename( int row )
     return datasource;
   }
 
-  return QString::null;
+  return QString();
 }
 
-void QgsHandleBadLayers::setFilename( int row, const QString& filename )
+void QgsHandleBadLayers::setFilename( int row, const QString &filename )
 {
-  if ( !QFileInfo( filename ).exists() )
+  if ( !QFileInfo::exists( filename ) )
     return;
 
   QString type = mLayerList->item( row, 1 )->text();
@@ -218,26 +210,26 @@ void QgsHandleBadLayers::setFilename( int row, const QString& filename )
 
   QString datasource = item->text();
 
-  if ( type == "vector" )
+  if ( type == QLatin1String( "vector" ) )
   {
-    if ( provider == "spatialite" )
+    if ( provider == QLatin1String( "spatialite" ) )
     {
       QgsDataSourceUri uri( datasource );
       uri.setDatabase( filename );
       datasource = uri.uri();
     }
-    else if ( provider == "ogr" )
+    else if ( provider == QLatin1String( "ogr" ) )
     {
       QStringList theURIParts = datasource.split( '|' );
       theURIParts[0] = filename;
-      datasource = theURIParts.join( "|" );
+      datasource = theURIParts.join( QStringLiteral( "|" ) );
     }
-    else if ( provider == "delimitedtext" )
+    else if ( provider == QLatin1String( "delimitedtext" ) )
     {
       QUrl uriSource = QUrl::fromEncoded( datasource.toLatin1() );
       QUrl uriDest = QUrl::fromLocalFile( filename );
       uriDest.setQueryItems( uriSource.queryItems() );
-      datasource = QString::fromAscii( uriDest.toEncoded() );
+      datasource = QString::fromLatin1( uriDest.toEncoded() );
     }
   }
   else
@@ -257,14 +249,14 @@ void QgsHandleBadLayers::browseClicked()
     QString type = mLayerList->item( row, 1 )->text();
 
     QString memoryQualifier, fileFilter;
-    if ( type == "vector" )
+    if ( type == QLatin1String( "vector" ) )
     {
-      memoryQualifier = "lastVectorFileFilter";
+      memoryQualifier = QStringLiteral( "lastVectorFileFilter" );
       fileFilter = mVectorFileFilter;
     }
     else
     {
-      memoryQualifier = "lastRasterFileFilter";
+      memoryQualifier = QStringLiteral( "lastRasterFileFilter" );
       fileFilter = mRasterFileFilter;
     }
 
@@ -276,7 +268,7 @@ void QgsHandleBadLayers::browseClicked()
     QString enc;
     QString title = tr( "Select file to replace '%1'" ).arg( fn );
 
-    QgisGui::openFilesRememberingFilter( memoryQualifier, fileFilter, selectedFiles, enc, title );
+    QgsGuiUtils::openFilesRememberingFilter( memoryQualifier, fileFilter, selectedFiles, enc, title );
     if ( selectedFiles.size() != 1 )
     {
       QMessageBox::information( this, title, tr( "Please select exactly one file." ) );
@@ -289,8 +281,8 @@ void QgsHandleBadLayers::browseClicked()
   {
     QString title = tr( "Select new directory of selected files" );
 
-    QSettings settings;
-    QString lastDir = settings.value( "/UI/missingDirectory", QDir::homePath() ).toString();
+    QgsSettings settings;
+    QString lastDir = settings.value( QStringLiteral( "UI/missingDirectory" ), QDir::homePath() ).toString();
     QString selectedFolder = QFileDialog::getExistingDirectory( this, title, lastDir );
     if ( selectedFolder.isEmpty() )
     {
@@ -325,7 +317,7 @@ void QgsHandleBadLayers::browseClicked()
 
 void QgsHandleBadLayers::editAuthCfg()
 {
-  QToolButton *btn = qobject_cast<QToolButton*>( sender() );
+  QToolButton *btn = qobject_cast<QToolButton *>( sender() );
   int row = -1;
   for ( int i = 0; i < mLayerList->rowCount(); i++ )
   {
@@ -340,7 +332,7 @@ void QgsHandleBadLayers::editAuthCfg()
     return;
 
   QString provider = mLayerList->item( row, 2 )->text();
-  if ( provider == "none" )
+  if ( provider == QLatin1String( "none" ) )
     provider.clear();
 
   QString prevuri = mLayerList->item( row, 4 )->text();
@@ -369,8 +361,8 @@ void QgsHandleBadLayers::apply()
     QTableWidgetItem *item = mLayerList->item( i, 4 );
     QString datasource = item->text();
 
-    node.namedItem( "datasource" ).toElement().firstChild().toText().setData( datasource );
-    if ( QgsProject::instance()->read( node ) )
+    node.namedItem( QStringLiteral( "datasource" ) ).toElement().firstChild().toText().setData( datasource );
+    if ( QgsProject::instance()->readLayer( node ) )
     {
       mLayerList->removeRow( i-- );
     }
@@ -400,7 +392,7 @@ void QgsHandleBadLayers::accept()
   QDialog::accept();
 }
 
-void QgsHandleBadLayers::rejected()
+void QgsHandleBadLayers::reject()
 {
 
   if ( mLayerList->rowCount() > 0  &&

@@ -32,11 +32,12 @@ from .db_plugins.plugin import BaseError, Table, Database
 from .dlg_db_error import DlgDbError
 
 from qgis.core import QgsDataSourceUri, QgsVectorLayer, QgsRasterLayer, QgsMimeDataUtils
+from qgis.utils import OverrideCursor
 
 from . import resources_rc  # NOQA
 
 try:
-    from qgis.core import QgsVectorLayerImport  # NOQA
+    from qgis.core import QgsVectorLayerExporter  # NOQA
     isImportVectorAvail = True
 except:
     isImportVectorAvail = False
@@ -256,9 +257,9 @@ class TableItem(TreeItem):
             if geom_type is not None:
                 if geom_type.find('POINT') != -1:
                     return self.layerPointIcon
-                elif geom_type.find('LINESTRING') != -1:
+                elif geom_type.find('LINESTRING') != -1 or geom_type in ('CIRCULARSTRING', 'COMPOUNDCURVE', 'MULTICURVE'):
                     return self.layerLineIcon
-                elif geom_type.find('POLYGON') != -1:
+                elif geom_type.find('POLYGON') != -1 or geom_type == 'MULTISURFACE':
                     return self.layerPolygonIcon
                 return self.layerUnknownIcon
 
@@ -300,6 +301,7 @@ class DBModel(QAbstractItemModel):
             self.importVector.connect(self.vectorImport)
 
         self.hasSpatialiteSupport = "spatialite" in supportedDbTypes()
+        self.hasGPKGSupport = "gpkg" in supportedDbTypes()
 
         self.rootItem = TreeItem(None, None)
         for dbtype in supportedDbTypes():
@@ -401,7 +403,7 @@ class DBModel(QAbstractItemModel):
                     flags |= Qt.ItemIsDropEnabled
 
             # SL/Geopackage db files can be dropped everywhere in the tree
-            if self.hasSpatialiteSupport:
+            if self.hasSpatialiteSupport or self.hasGPKGSupport:
                 flags |= Qt.ItemIsDropEnabled
 
         return flags
@@ -457,17 +459,15 @@ class DBModel(QAbstractItemModel):
             if new_value == obj.name:
                 return False
 
-            QApplication.setOverrideCursor(Qt.WaitCursor)
-            try:
-                obj.rename(new_value)
-                self._onDataChanged(index)
-            except BaseError as e:
-                DlgDbError.showError(e, self.treeView)
-                return False
-            finally:
-                QApplication.restoreOverrideCursor()
-
-            return True
+            with OverrideCursor(Qt.WaitCursor):
+                try:
+                    obj.rename(new_value)
+                    self._onDataChanged(index)
+                except BaseError as e:
+                    DlgDbError.showError(e, self.treeView)
+                    return False
+                else:
+                    return True
 
         return False
 
@@ -479,27 +479,23 @@ class DBModel(QAbstractItemModel):
         self.endRemoveRows()
 
     def _refreshIndex(self, index, force=False):
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        try:
-            item = index.internalPointer() if index.isValid() else self.rootItem
-            prevPopulated = item.populated
-            if prevPopulated:
-                self.removeRows(0, self.rowCount(index), index)
+        with OverrideCursor(Qt.WaitCursor):
+            try:
+                item = index.internalPointer() if index.isValid() else self.rootItem
+                prevPopulated = item.populated
+                if prevPopulated:
+                    self.removeRows(0, self.rowCount(index), index)
+                    item.populated = False
+                if prevPopulated or force:
+                    if item.populate():
+                        for child in item.childItems:
+                            child.changed.connect(partial(self.refreshItem, child))
+                        self._onDataChanged(index)
+                    else:
+                        self.notPopulated.emit(index)
+
+            except BaseError:
                 item.populated = False
-            if prevPopulated or force:
-                if item.populate():
-                    for child in item.childItems:
-                        child.changed.connect(partial(self.refreshItem, child))
-                    self._onDataChanged(index)
-                else:
-                    self.notPopulated.emit(index)
-
-        except BaseError:
-            item.populated = False
-            return
-
-        finally:
-            QApplication.restoreOverrideCursor()
 
     def _onDataChanged(self, indexFrom, indexTo=None):
         if indexTo is None:
@@ -599,7 +595,7 @@ class DBModel(QAbstractItemModel):
 
         if not inLayer.isValid():
             # invalid layer
-            QMessageBox.warning(None, self.tr("Invalid layer"), self.tr("Unable to load the layer %s") % inLayer.name())
+            QMessageBox.warning(None, self.tr("Invalid layer"), self.tr("Unable to load the layer {0}").format(inLayer.name()))
             return False
 
         # retrieve information about the new table's db and schema

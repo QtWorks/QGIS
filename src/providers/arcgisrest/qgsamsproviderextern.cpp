@@ -18,14 +18,17 @@
 #include "qgis.h"
 #include "qgsamsdataitems.h"
 #include "qgsamsprovider.h"
-#include "qgsamssourceselect.h"
 #include "qgsowsconnection.h"
 
-const QString AMS_KEY = "arcgismapserver";
-const QString AMS_DESCRIPTION = "ArcGIS Map Server data provider";
+#ifdef HAVE_GUI
+#include "qgsamssourceselect.h"
+#endif
+
+const QString AMS_KEY = QStringLiteral( "arcgismapserver" );
+const QString AMS_DESCRIPTION = QStringLiteral( "ArcGIS Map Server data provider" );
 
 
-QGISEXTERN QgsAmsProvider * classFactory( const QString *uri )
+QGISEXTERN QgsAmsProvider *classFactory( const QString *uri )
 {
   return new QgsAmsProvider( *uri );
 }
@@ -45,35 +48,37 @@ QGISEXTERN bool isProvider()
   return true;
 }
 
-QGISEXTERN QgsAmsSourceSelect *selectWidget( QWidget *parent, Qt::WindowFlags fl )
+#ifdef HAVE_GUI
+QGISEXTERN QgsAmsSourceSelect *selectWidget( QWidget *parent, Qt::WindowFlags fl, QgsProviderRegistry::WidgetMode widgetMode )
 {
-  return new QgsAmsSourceSelect( parent, fl );
+  return new QgsAmsSourceSelect( parent, fl, widgetMode );
 }
+#endif
 
 QGISEXTERN int dataCapabilities()
 {
   return  QgsDataProvider::Net;
 }
 
-QGISEXTERN QgsDataItem *dataItem( QString thePath, QgsDataItem *parentItem )
+QGISEXTERN QgsDataItem *dataItem( QString path, QgsDataItem *parentItem )
 {
-  if ( thePath.isEmpty() )
+  if ( path.isEmpty() )
   {
-    return new QgsAmsRootItem( parentItem, "ArcGisMapServer", "arcgismapserver:" );
+    return new QgsAmsRootItem( parentItem, QStringLiteral( "ArcGisMapServer" ), QStringLiteral( "arcgismapserver:" ) );
   }
 
   // path schema: ams:/connection name (used by OWS)
-  if ( thePath.startsWith( "ams:/" ) )
+  if ( path.startsWith( QLatin1String( "ams:/" ) ) )
   {
-    QString connectionName = thePath.split( '/' ).last();
-    if ( QgsOwsConnection::connectionList( "ArcGisMapServer" ).contains( connectionName ) )
+    QString connectionName = path.split( '/' ).last();
+    if ( QgsOwsConnection::connectionList( QStringLiteral( "arcgismapserver" ) ).contains( connectionName ) )
     {
-      QgsOwsConnection connection( "ArcGisMapServer", connectionName );
-      return new QgsAmsConnectionItem( parentItem, "ArcGisMapServer", thePath, connection.uri().param( "url" ) );
+      QgsOwsConnection connection( QStringLiteral( "arcgismapserver" ), connectionName );
+      return new QgsAmsConnectionItem( parentItem, QStringLiteral( "ArcGisMapServer" ), path, connection.uri().param( QStringLiteral( "url" ) ) );
     }
   }
 
-  return 0;
+  return nullptr;
 }
 
 
